@@ -67,9 +67,18 @@ PII_PATTERNS: dict[str, tuple[re.Pattern, float]] = {
     # High-confidence patterns                                            #
     # ------------------------------------------------------------------ #
 
-    # Indian mobile numbers: supports +91 prefix, 0 prefix, hyphens/spaces.
+    # Phone & Fax numbers: supports mobile, landline, STD/area codes in parens (e.g. +91 (20) 6704 7000),
+    # prefixes (T +, F +, Tel:, Fax:), and hyphens/spaces.
     "PHONE_NUMBER": (
-        re.compile(r"(?<!\d)(?:\+91[-\s]?|0)?[6-9]\d{4}[-\s]?\d{5}(?!\d)"),
+        re.compile(
+            r"(?i)"
+            r"(?:\b(?:T|F|Tel|Fax|Phone|Ph|Mobile|Mob|Cell)\.?:?\s*)?"
+            r"(?:"
+            r"\+\d{1,3}[-\s]?(?:\(\d{1,5}\)|\d{1,5})[-\s]?\d{3,4}[-\s]?\d{3,4}"
+            r"|(?:\+91[-\s]?|0)?[6-9]\d{4}[-\s]?\d{5}"
+            r"|(?:\(\d{2,5}\)|\b0\d{2,4}\b)[-\s]?\d{3,4}[-\s]?\d{3,4}"
+            r")\b"
+        ),
         0.93,
     ),
 
