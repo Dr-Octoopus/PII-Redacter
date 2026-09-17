@@ -1,0 +1,66 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+build/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.whl
+*.so
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ── Testing / Coverage ────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# ── Type checkers ──────────────────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ── Project output ─────────────────────────────────────────────────────────────
+output/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── Editors ───────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+
+# ── Secrets / Env ─────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
