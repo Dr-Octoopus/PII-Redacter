@@ -16,7 +16,7 @@ Valid category names for --include / --exclude
 ----------------------------------------------
   Regex-detected  : EMAIL, PAN_NUMBER, PHONE_NUMBER, DATE_OF_BIRTH,
                     IP_ADDRESS, AADHAAR_NUMBER, CREDIT_CARD, PINCODE
-  NER-detected    : PERSON_NAME, LOCATION
+  NER-detected    : PERSON_NAME, LOCATION, ORGANIZATION
 
 This file is intentionally thin: all real work happens in
 core.pipeline.process_document(), the same function api.py calls.
@@ -42,7 +42,7 @@ def main() -> None:
             "Category names for --include / --exclude:\n"
             "  Regex : EMAIL, PAN_NUMBER, PHONE_NUMBER, DATE_OF_BIRTH,\n"
             "          IP_ADDRESS, AADHAAR_NUMBER, CREDIT_CARD, PINCODE\n"
-            "  NER   : PERSON_NAME, LOCATION\n"
+            "  NER   : PERSON_NAME, LOCATION, ORGANIZATION\n"
         ),
     )
     parser.add_argument(
