@@ -164,32 +164,96 @@ def cleanup_gpu() -> None:
         pass
 
 
+from detectors.context_detector import detect_context_pii, REJECT_TITLE_WORDS, FALSE_ORG_TERMS
+
+
+_ORG_SUSPICION_TERMS = {
+    "api", "repository", "factory", "tool", "tools", "manual", "page",
+    "configuration", "config", "workflow", "module"
+}
+
+_ORG_LEGAL_OR_BRAND_TERMS = {
+    "emerson", "microsoft", "inc", "ltd", "limited", "corp", "corporation",
+    "llc", "plc", "solutions", "systems", "technologies", "services",
+    "group", "holdings", "centre", "center"
+}
+
+
+def _normalized_words(text: str) -> list[str]:
+    return [w.strip(".,;:()[]{}'\"").lower() for w in text.split() if w.strip(".,;:()[]{}'\"")]
+
+
+def _should_skip_entity(text: str, category: str) -> bool:
+    normalized = " ".join(text.split())
+    lower = normalized.lower()
+    words = _normalized_words(normalized)
+
+    if not normalized or lower in REJECT_TITLE_WORDS:
+        return True
+
+    if category == "ORGANIZATION":
+        if lower in FALSE_ORG_TERMS:
+            return True
+        if words and all(w in FALSE_ORG_TERMS for w in words):
+            return True
+
+    if category == "PERSON_NAME":
+        if any(w in FALSE_ORG_TERMS for w in words):
+            return True
+        if any(w in _ORG_SUSPICION_TERMS for w in words):
+            return True
+
+    return False
+
+
+def _adjust_confidence(category: str, text: str, score: float) -> float:
+    """
+    Lower confidence for entity shapes that spaCy often over-labels in
+    technical manuals. They remain visible to reviewers instead of looking
+    like certain high-confidence PII.
+    """
+    if category != "ORGANIZATION":
+        return score
+
+    words = _normalized_words(text)
+    if not words:
+        return score
+
+    has_brand_signal = any(w in _ORG_LEGAL_OR_BRAND_TERMS for w in words)
+    has_suspicion = any(w in _ORG_SUSPICION_TERMS or w in FALSE_ORG_TERMS for w in words)
+
+    if has_suspicion and not has_brand_signal:
+        return min(score, 0.68)
+    if len(words) == 1 and not has_brand_signal:
+        return min(score, 0.70)
+    return score
+
+
 def detect_ner_pii(
     text: str,
     include: Optional[list[str]] = None,
     exclude: Optional[list[str]] = None,
 ) -> list[dict]:
     """
-    Run spaCy NER over *text* and return name / location detections.
+    Run spaCy NER and context rules over *text* and return name, location,
+    and organization detections.
 
     Args:
         text:    The full document text to scan.
         include: If provided, ONLY these output category names are returned.
-                 Example: ["PERSON_NAME"]
+                 Example: ["PERSON_NAME", "ORGANIZATION"]
         exclude: If provided, these output category names are skipped.
                  Example: ["LOCATION"]
                  Ignored when *include* is also supplied.
 
     Returns:
-        A list of detection dicts in the same shape as the regex
-        detector's output (text, category, start, end,
-        detection_method, confidence) — ready to be merged together.
+        A list of detection dicts (text, category, start, end,
+        detection_method, confidence) — ready to be merged.
 
     Category names (pass these to include/exclude):
-        PERSON_NAME, LOCATION
+        PERSON_NAME, LOCATION, ORGANIZATION
     """
-    # Build the set of output category names we actually want.
-    all_output_labels = set(LABEL_MAP.values())   # {"PERSON_NAME", "LOCATION"}
+    all_output_labels = set(LABEL_MAP.values())   # {"PERSON_NAME", "LOCATION", "ORGANIZATION"}
 
     if include:
         active = {c.upper() for c in include} & all_output_labels
@@ -201,23 +265,84 @@ def detect_ner_pii(
     if not active:
         return []
 
-    doc = _nlp(text)
     detections = []
+
+    # 1. Run contextual / rule-assisted detector first
+    context_hits = detect_context_pii(text)
+    for hit in context_hits:
+        if hit["category"] in active:
+            detections.append(hit)
+
+    # 2. Run spaCy NER
+    doc = _nlp(text)
 
     for ent in doc.ents:
         output_category = LABEL_MAP.get(ent.label_)
-        if output_category is None:
-            continue  # spaCy label we don't care about (DATE, ORG, MONEY …)
-        if output_category not in active:
+        if output_category is None or output_category not in active:
             continue
 
+        ent_text = ent.text.strip()
+
+        # Skip rejection words and common technical false positives.
+        if _should_skip_entity(ent_text, output_category):
+            continue
+
+        # Handle concatenated Person Names (e.g., "Atharva Khole Amar Bagal" -> 2 distinct 2-word names)
+        if output_category == "PERSON_NAME":
+            words = ent_text.split()
+            # If 4 capitalized words (e.g. Atharva Khole Amar Bagal in tabular layout)
+            if len(words) == 4 and all(w[0].isupper() for w in words):
+                name1 = f"{words[0]} {words[1]}"
+                name2 = f"{words[2]} {words[3]}"
+                idx1 = text.find(name1, ent.start_char)
+                idx2 = text.find(name2, ent.start_char)
+
+                if idx1 != -1:
+                    detections.append({
+                        "text": name1,
+                        "category": "PERSON_NAME",
+                        "start": idx1,
+                        "end": idx1 + len(name1),
+                        "detection_method": "ner",
+                        "confidence": _compute_confidence(ent),
+                    })
+                if idx2 != -1:
+                    detections.append({
+                        "text": name2,
+                        "category": "PERSON_NAME",
+                        "start": idx2,
+                        "end": idx2 + len(name2),
+                        "detection_method": "ner",
+                        "confidence": _compute_confidence(ent),
+                    })
+                continue
+
+        # Handle multiline ORG text (e.g., "Emerson Automation Solutions \nProcess Systems and Solutions")
+        if "\n" in ent_text:
+            lines = [l.strip() for l in ent_text.splitlines() if l.strip()]
+            for line in lines:
+                if len(line) >= 3 and not _should_skip_entity(line, output_category):
+                    idx = text.find(line, ent.start_char)
+                    if idx != -1:
+                        confidence = _adjust_confidence(output_category, line, _compute_confidence(ent))
+                        detections.append({
+                            "text": line,
+                            "category": output_category,
+                            "start": idx,
+                            "end": idx + len(line),
+                            "detection_method": "ner",
+                            "confidence": confidence,
+                        })
+            continue
+
+        confidence = _adjust_confidence(output_category, ent_text, _compute_confidence(ent))
         detections.append({
-            "text":             ent.text,
+            "text":             ent_text,
             "category":         output_category,
             "start":            ent.start_char,
-            "end":              ent.end_char,
+            "end":              ent.start_char + len(ent_text),
             "detection_method": "ner",
-            "confidence":       _compute_confidence(ent),
+            "confidence":       confidence,
         })
 
     return detections
