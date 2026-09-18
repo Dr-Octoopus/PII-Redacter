@@ -137,38 +137,54 @@ def redact_docx(
 # PDF redaction
 # ---------------------------------------------------------------------------
 
-def redact_pdf(filepath: str, entities: list[dict], output_path: str) -> None:
+STOPWORDS = {
+    "and", "to", "the", "of", "in", "for", "on", "with", "at", "by", "from",
+    "up", "about", "into", "over", "after", "or", "an", "a", "is", "it", "be",
+    "are", "was", "were", "this", "that", "these", "those", "have", "has",
+    "had", "been", "will", "would", "shall", "should", "may", "might", "can",
+    "could", "page", "rev", "doc", "app", "status", "date"
+}
+
+
+def redact_pdf(
+    filepath: str,
+    entities: list[dict],
+    structure_map: Optional[list[dict]],
+    output_path: str,
+) -> None:
     """
     Redact a .pdf file by drawing true redaction annotations over the
-    matched text's bounding boxes, then applying them.
+    matched text's bounding boxes on the specific page where the entity was found.
 
-    apply_redactions() permanently removes the text under each box — this
-    is a REAL redaction, not just a black overlay that can be copy-pasted.
-
-    SEARCH STRATEGY
-    ---------------
-    page.search_for() is more reliable for PDFs than replaying character
-    offsets, because PDFs can have non-obvious internal encodings, ligatures,
-    or soft-hyphens that make the plain text look different from the stored
-    bytes.
-
-    We try three search strategies per entity:
-      1. Exact text match (fast path).
-      2. Each whitespace-separated word individually (handles line-wrapped text).
-      3. Strip whitespace and search for the compact form (handles extra spaces).
+    apply_redactions() permanently removes the text under each box.
     """
     doc = fitz.open(filepath)
 
-    # Collect unique matched strings to avoid redundant searching.
-    unique_texts = {entity["text"] for entity in entities}
+    for page_number, page in enumerate(doc):
+        # Determine entities detected specifically on this page.
+        if structure_map and page_number < len(structure_map):
+            page_info = structure_map[page_number]
+            p_start, p_end = page_info["start"], page_info["end"]
+            page_entities = [
+                e for e in entities
+                if p_start <= e["start"] < p_end
+            ]
+        else:
+            page_entities = entities
 
-    for page in doc:
-        for matched_text in unique_texts:
+        if not page_entities:
+            continue
+
+        seen_texts: set[str] = set()
+        for entity in page_entities:
+            matched_text = entity.get("text", "").strip()
+            if not matched_text or matched_text in seen_texts:
+                continue
+            seen_texts.add(matched_text)
             rects = _search_text_on_page(page, matched_text)
             for rect in rects:
                 page.add_redact_annot(rect, text="", fill=(0, 0, 0))
 
-        # apply_redactions() permanently removes text under all annotations.
         page.apply_redactions()
 
     doc.save(output_path)
@@ -177,32 +193,52 @@ def redact_pdf(filepath: str, entities: list[dict], output_path: str) -> None:
 
 def _search_text_on_page(page, text: str) -> list:
     """
-    Try multiple search strategies and return all bounding-box rects found.
+    Safely search for text on a page without over-redacting common words.
     """
-    # Strategy 1: exact match.
+    # Strategy 1: Exact match on page
     rects = page.search_for(text)
     if rects:
         return rects
 
-    # Strategy 2: word-by-word (handles text that was broken across lines).
+    # Strategy 2: If multi-line/mult-span text, search line by line or phrase by phrase
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) > 1:
+        line_rects = []
+        for line in lines:
+            if len(line) >= 3 and line.lower() not in STOPWORDS:
+                found = page.search_for(line)
+                if found:
+                    line_rects.extend(found)
+        if line_rects:
+            return line_rects
+
+    # Strategy 3: For wrapped phrases, try adjacent non-empty line pairs.
+    # Avoid falling back to individual words: a false ORG span such as
+    # "Tools Factory API" must not redact every "Tools" or "API" token on
+    # the page.
+    if len(lines) > 1:
+        pair_rects = []
+        for first, second in zip(lines, lines[1:]):
+            phrase = f"{first} {second}".strip()
+            if len(phrase) >= 6:
+                found = page.search_for(phrase)
+                if found:
+                    pair_rects.extend(found)
+        if pair_rects:
+            return pair_rects
+
+    # Strategy 4: Multi-word phrases sometimes fail because PDF extraction
+    # inserts repeated spaces. Retry with normalized whitespace.
     words = text.split()
     if len(words) > 1:
-        all_rects = []
-        for word in words:
-            if len(word) >= 3:   # skip very short words to reduce noise
-                found = page.search_for(word)
-                all_rects.extend(found)
-        if all_rects:
-            return all_rects
-
-    # Strategy 3: compact form (strip all whitespace).
-    compact = "".join(text.split())
-    if compact != text:
-        rects = page.search_for(compact)
-        if rects:
-            return rects
+        normalized = " ".join(words)
+        if normalized != text:
+            rects = page.search_for(normalized)
+            if rects:
+                return rects
 
     return []
+
 
 
 # ---------------------------------------------------------------------------
