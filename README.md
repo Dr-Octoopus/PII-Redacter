@@ -39,10 +39,12 @@
 | `AADHAAR_NUMBER` | Regex | ~0.85 |
 | `CREDIT_CARD` | Regex | ~0.82 |
 | `PINCODE` | Regex | ~0.78 |
-| `PERSON_NAME` | NER (spaCy) | 0.60 – 0.92 |
-| `LOCATION` | NER (spaCy) | 0.60 – 0.92 |
+| `PERSON_NAME` | NER (spaCy) + Context rules | 0.60 – 0.92 |
+| `ORGANIZATION` | NER (spaCy) + Context rules | 0.70 – 0.92 |
+| `LOCATION` | NER (spaCy) | 0.60 – 0.93 |
 
 > Confidence scores are pattern-specific and heuristic-based. The JSON report lists the individual score for every detection. Any detection below **0.75** generates a warning so a human reviewer knows exactly which match to double-check.
+
 
 ---
 
