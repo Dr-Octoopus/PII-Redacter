@@ -32,6 +32,7 @@ Valid category names (case-insensitive):
 """
 
 import os
+import re
 from collections import Counter
 from typing import Optional
 
@@ -113,6 +114,7 @@ def process_document(
     regex_hits = detect_regex_pii(text, include=include, exclude=exclude)
     ner_hits   = detect_ner_pii(text,   include=include, exclude=exclude)
     entities   = merge_detections(regex_hits, ner_hits)
+    entities   = _expand_consistent_entities(text, entities)
 
     # ------------------------------------------------------------------ #
     # Step 3 — Redact, dispatching to the format-specific redactor       #
@@ -127,7 +129,7 @@ def process_document(
     elif extension == ".xlsx":
         redact_xlsx(filepath, entities, structure_map, redacted_path)
     else:  # .pdf
-        redact_pdf(filepath, entities, redacted_path)
+        redact_pdf(filepath, entities, structure_map, redacted_path)
 
     # ------------------------------------------------------------------ #
     # Step 4 — Build and save the JSON report                             #
@@ -149,6 +151,57 @@ def process_document(
     _print_summary(filename, entities, warnings)
 
     return redacted_path, report_path
+
+
+def _expand_consistent_entities(text: str, entities: list[dict]) -> list[dict]:
+    """
+    Redact exact repeated occurrences of high-confidence semantic entities.
+
+    NER can catch a person or organization in one layout location and miss
+    the same literal string elsewhere. Propagating exact matches keeps the
+    document consistent while avoiding fuzzy guesses.
+    """
+    semantic_categories = {"PERSON_NAME", "ORGANIZATION", "LOCATION"}
+    expanded = list(entities)
+
+    def overlaps_existing(start: int, end: int) -> bool:
+        return any(start < e["end"] and e["start"] < end for e in expanded)
+
+    seed_entities = [
+        e for e in entities
+        if e["category"] in semantic_categories
+        and e.get("confidence", 0) >= 0.85
+        and len(e.get("text", "").strip()) >= 4
+    ]
+
+    seen_seeds: set[tuple[str, str]] = set()
+    for entity in seed_entities:
+        literal = " ".join(entity["text"].split())
+        seed_key = (entity["category"], literal.casefold())
+        if seed_key in seen_seeds:
+            continue
+        seen_seeds.add(seed_key)
+
+        pattern_text = re.escape(literal)
+        if literal[0].isalnum():
+            pattern_text = r"(?<!\w)" + pattern_text
+        if literal[-1].isalnum():
+            pattern_text = pattern_text + r"(?!\w)"
+
+        for match in re.finditer(pattern_text, text, flags=re.IGNORECASE):
+            if overlaps_existing(match.start(), match.end()):
+                continue
+            expanded.append({
+                "text": match.group(),
+                "category": entity["category"],
+                "start": match.start(),
+                "end": match.end(),
+                "detection_method": "consistency_rule",
+                "confidence": min(entity["confidence"], 0.88),
+            })
+
+    expanded.sort(key=lambda e: e["start"])
+    return expanded
 
 
 def _print_summary(
