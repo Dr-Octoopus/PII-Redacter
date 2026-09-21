@@ -29,23 +29,29 @@ def parse_pdf(filepath: str) -> tuple[str, list[dict]]:
           - full_text: all pages' text joined with newlines (used
             for running detection across the whole document).
           - page_map: a list of dicts, one per page, containing the
-            page number and that page's raw text. The redactor uses
-            page numbers (not offsets) to locate where to redact.
+            page number, start/end character offsets in full_text,
+            and that page's raw text.
     """
     doc = fitz.open(filepath)
 
     full_text_parts = []
     page_map = []
+    current_offset = 0
 
     for page_number, page in enumerate(doc):
         page_text = page.get_text("text")
+        text_len = len(page_text)
         page_map.append({
             "page_number": page_number,
+            "start": current_offset,
+            "end": current_offset + text_len,
             "text": page_text,
         })
         full_text_parts.append(page_text)
+        current_offset += text_len + 1  # +1 for join newline
 
     doc.close()
 
     full_text = "\n".join(full_text_parts)
     return full_text, page_map
+
