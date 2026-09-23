@@ -8,7 +8,7 @@ statistical NER models may miss or group together.
 
 import re
 
-# Non-name technical terms to reject if matched by title-case patterns
+# Non-name technical terms & job titles to reject if matched by title-case patterns
 REJECT_TITLE_WORDS = {
     "revision history", "user manual", "system requirements", "installation steps",
     "execution workflow", "landing page", "security considerations", "contact information",
@@ -18,13 +18,16 @@ REJECT_TITLE_WORDS = {
     "table contents", "project code", "file name", "page number", "all rights",
     "confidential proprietary", "technical specification", "functional requirement",
     "confidential and proprietary", "rights reserved", "unauthorized duplication",
-    "tools factory lead", "tools factory manager", "tool owner"
+    "tools factory lead", "tools factory manager", "tool owner",
+    "director- hr & admin", "director - hr & admin", "director- hr", "director - hr",
+    "hr & admin", "director", "authorized signatory", "signatory", "signature"
 }
 
 FALSE_ORG_TERMS = {
     "signal", "signals", "process", "processes", "excel", "workbook", "workbooks",
     "configuration", "configurations", "application", "applications", "manual",
-    "repository", "api", "page", "revision", "status", "description"
+    "repository", "api", "page", "revision", "status", "description",
+    "admin", "administration", "hr", "director", "signatory", "signature"
 }
 
 NON_PERSON_WORDS = FALSE_ORG_TERMS | {
@@ -39,8 +42,10 @@ NON_PERSON_WORDS = FALSE_ORG_TERMS | {
     "possible", "cause", "resolution", "unable", "scope", "security",
     "considerations", "limitations", "conclusion", "support", "portal", "its",
     "the", "status", "description", "date", "page", "manual", "owner",
-    "manager", "lead"
+    "manager", "lead", "director", "admin", "administration", "hr", "signatory",
+    "signature", "authorized", "officer", "executive", "president"
 }
+
 
 # Role label prefixes for name extraction
 ROLE_KEYWORDS = {
