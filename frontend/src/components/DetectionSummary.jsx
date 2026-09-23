@@ -24,13 +24,13 @@ export default function DetectionSummary({ report }) {
 
   return (
     <div className="glass-card" style={{ padding: '1.75rem', marginBottom: '2rem', position: 'relative', zIndex: 1 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.35rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h3 style={{ fontSize: '1.15rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <BarChart3 size={18} color="var(--accent-primary)" /> Detection Report
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
+            <BarChart3 size={20} color="var(--accent-primary)" /> Detection & Classification Summary
           </h3>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-            Summary of identified PII entities and confidence scores.
+            Comprehensive overview of identified PII entities, confidence ratings, and detection methods.
           </p>
         </div>
       </div>
@@ -38,49 +38,49 @@ export default function DetectionSummary({ report }) {
       {/* Summary Stat Cards */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon-box" style={{ background: 'rgba(99, 102, 241, 0.12)', color: '#818cf8' }}>
-            <ShieldAlert size={22} />
+          <div className="stat-icon-box" style={{ background: 'var(--accent-glow)', color: 'var(--accent-primary)' }}>
+            <ShieldAlert size={24} />
           </div>
           <div>
-            <div className="stat-value" style={{ color: '#c7d2fe' }}>{entities.length}</div>
+            <div className="stat-value" style={{ color: 'var(--text-primary)' }}>{entities.length}</div>
             <div className="stat-label">Total Entities</div>
           </div>
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon-box" style={{ background: 'rgba(56, 189, 248, 0.12)', color: '#38bdf8' }}>
-            <Sparkles size={22} />
+          <div className="stat-icon-box" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}>
+            <Sparkles size={24} />
           </div>
           <div>
-            <div className="stat-value" style={{ color: '#7dd3fc' }}>{regexCount}</div>
-            <div className="stat-label">Regex Hits</div>
+            <div className="stat-value" style={{ color: 'var(--text-primary)' }}>{regexCount}</div>
+            <div className="stat-label">Regex Matches</div>
           </div>
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon-box" style={{ background: 'rgba(192, 132, 252, 0.12)', color: '#c084fc' }}>
-            <Cpu size={22} />
+          <div className="stat-icon-box" style={{ background: 'rgba(192, 132, 252, 0.15)', color: '#c084fc' }}>
+            <Cpu size={24} />
           </div>
           <div>
-            <div className="stat-value" style={{ color: '#e9d5ff' }}>{nerCount}</div>
-            <div className="stat-label">NER Hits</div>
+            <div className="stat-value" style={{ color: 'var(--text-primary)' }}>{nerCount}</div>
+            <div className="stat-label">NER Model Hits</div>
           </div>
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#34d399' }}>
-            <CheckCircle size={22} />
+          <div className="stat-icon-box" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}>
+            <CheckCircle size={24} />
           </div>
           <div>
-            <div className="stat-value" style={{ color: '#6ee7b7' }}>{highConfCount}</div>
+            <div className="stat-value" style={{ color: 'var(--text-primary)' }}>{highConfCount}</div>
             <div className="stat-label">≥ 90% Confidence</div>
           </div>
         </div>
       </div>
 
       {/* Category Pills & Filters */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.15rem', gap: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
           <button
             className={`btn btn-sm ${filter === 'ALL' ? 'btn-primary' : 'btn-outline'}`}
             onClick={() => setFilter('ALL')}
@@ -98,44 +98,47 @@ export default function DetectionSummary({ report }) {
           ))}
         </div>
 
-        <div style={{ position: 'relative', minWidth: '240px' }}>
+        <div style={{ position: 'relative', minWidth: '250px' }}>
           <input
             type="text"
-            placeholder="Search entities..."
+            placeholder="Search detected entities..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{
               width: '100%',
-              padding: '0.45rem 0.85rem 0.45rem 2.25rem',
-              background: 'var(--bg-surface-elevated)',
+              padding: '0.5rem 0.85rem 0.5rem 2.35rem',
+              background: 'var(--input-bg)',
               border: '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-sm)',
               color: 'var(--text-primary)',
-              fontSize: '0.825rem',
+              fontSize: '0.85rem',
               outline: 'none',
+              transition: 'border-color var(--transition-fast)'
             }}
           />
-          <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: 10, top: 10 }} />
+          <Search size={15} color="var(--text-muted)" style={{ position: 'absolute', left: 10, top: 11 }} />
         </div>
       </div>
 
       {/* Table */}
-      <div style={{ overflowX: 'auto', maxHeight: '380px', overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)' }}>
+      <div style={{ overflowX: 'auto', maxHeight: '420px', overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)' }}>
         <table className="summary-table">
           <thead>
             <tr>
-              <th>Detected Entity</th>
+              <th>Detected Entity Value</th>
               <th>Category</th>
               <th>Method</th>
-              <th>Confidence</th>
+              <th>Confidence Level</th>
             </tr>
           </thead>
           <tbody>
             {filteredEntities.length > 0 ? (
               filteredEntities.map((ent, idx) => (
                 <tr key={idx}>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#fca5a5' }}>
-                    {ent.text}
+                  <td>
+                    <span className="redacted-entity-tag">
+                      {ent.text}
+                    </span>
                   </td>
                   <td>
                     <span className="badge badge-cat">{ent.category}</span>
@@ -145,30 +148,33 @@ export default function DetectionSummary({ report }) {
                       {ent.detection_method.toUpperCase()}
                     </span>
                   </td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.825rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <div style={{
-                        width: '60px',
-                        height: '6px',
-                        background: 'rgba(255,255,255,0.1)',
-                        borderRadius: '3px',
+                        width: '70px',
+                        height: '7px',
+                        background: 'var(--border-subtle)',
+                        borderRadius: '4px',
                         overflow: 'hidden'
                       }}>
                         <div style={{
                           width: `${(ent.confidence * 100).toFixed(0)}%`,
                           height: '100%',
                           background: ent.confidence >= 0.90 ? 'var(--success)' : 'var(--warning)',
+                          borderRadius: '4px',
                         }} />
                       </div>
-                      <span>{(ent.confidence * 100).toFixed(1)}%</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {(ent.confidence * 100).toFixed(1)}%
+                      </span>
                     </div>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={4} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                  No entities match the selected filter.
+                <td colSpan={4} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                  No entities match the current search or category filter.
                 </td>
               </tr>
             )}
@@ -178,4 +184,3 @@ export default function DetectionSummary({ report }) {
     </div>
   );
 }
-

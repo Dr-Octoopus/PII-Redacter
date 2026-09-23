@@ -17,10 +17,10 @@ export default function ComparisonView({ jobId, renderType, totalPages, original
   const redactedImgUrl = `/api/preview/redacted/${jobId}/${currentPage}`;
 
   return (
-    <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Eye size={18} color="var(--accent-primary)" /> Document Side-by-Side Comparison
+    <div className="glass-card" style={{ padding: '1.75rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.55rem', color: 'var(--text-primary)' }}>
+          <Eye size={20} color="var(--accent-primary)" /> Document Side-by-Side Comparison
         </h3>
 
         {renderType === 'image' && totalPages > 1 && (
@@ -33,7 +33,7 @@ export default function ComparisonView({ jobId, renderType, totalPages, original
               <ChevronLeft size={16} /> Prev Page
             </button>
 
-            <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--text-secondary)' }}>
               Page {currentPage + 1} / {totalPages}
             </span>
 

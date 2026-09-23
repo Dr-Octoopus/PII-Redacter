@@ -28,9 +28,11 @@ export default function DocumentViewer({ renderType, imageSrc, textContent, page
         )}
 
         {renderType === 'error' && (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-            <p style={{ marginBottom: '1rem' }}>⚠️ Preview rendering unavailable for this office file type.</p>
-            <p style={{ fontSize: '0.85rem' }}>Install LibreOffice (`sudo pacman -S libreoffice-fresh`) for DOCX/XLSX page rendering, or download the redacted file directly below.</p>
+          <div style={{ textAlign: 'center', padding: '3rem 1.5rem', color: 'var(--text-secondary)' }}>
+            <p style={{ marginBottom: '1rem', fontWeight: 600 }}>⚠️ Preview rendering unavailable for this office file format.</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '400px', margin: '0 auto' }}>
+              Install LibreOffice (`sudo pacman -S libreoffice-fresh`) for office document page rendering, or download the redacted output directly below.
+            </p>
           </div>
         )}
       </div>
