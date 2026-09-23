@@ -16,6 +16,8 @@ character position.
 
 import pymupdf as fitz  # PyMuPDF (modern import path)
 
+from parsers.ocr_parser import extract_pdf_image_ocr
+
 
 def parse_pdf(filepath: str) -> tuple[str, list[dict]]:
     """
@@ -39,13 +41,16 @@ def parse_pdf(filepath: str) -> tuple[str, list[dict]]:
     current_offset = 0
 
     for page_number, page in enumerate(doc):
-        page_text = page.get_text("text")
+        native_text = page.get_text("text")
+        ocr_text, ocr_regions = extract_pdf_image_ocr(page, current_offset + len(native_text) + 1)
+        page_text = native_text if not ocr_text else f"{native_text}\n{ocr_text}"
         text_len = len(page_text)
         page_map.append({
             "page_number": page_number,
             "start": current_offset,
             "end": current_offset + text_len,
             "text": page_text,
+            "ocr_regions": ocr_regions,
         })
         full_text_parts.append(page_text)
         current_offset += text_len + 1  # +1 for join newline
@@ -54,4 +59,3 @@ def parse_pdf(filepath: str) -> tuple[str, list[dict]]:
 
     full_text = "\n".join(full_text_parts)
     return full_text, page_map
-
