@@ -1,8 +1,10 @@
 import React from 'react';
 
-export default function DocumentViewer({ renderType, imageSrc, textContent, pageNum, totalPages, title }) {
+export default function DocumentViewer({ renderType, imageSrc, textContent, pageNum, totalPages, title, zoomLevel = 100 }) {
+  const scaleRatio = zoomLevel / 100;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div className="pane-header">
         <span>{title}</span>
         {renderType === 'image' && (
@@ -12,17 +14,33 @@ export default function DocumentViewer({ renderType, imageSrc, textContent, page
         )}
       </div>
 
-      <div className="pane-body">
+      <div className="pane-body" style={{ overflow: 'auto', maxHeight: '580px', position: 'relative', width: '100%' }}>
         {renderType === 'image' && imageSrc && (
-          <img
-            src={imageSrc}
-            alt={`${title} page ${pageNum + 1}`}
-            className="document-page-image"
-          />
+          <div style={{ display: 'flex', justifyContent: 'center', minWidth: '100%', padding: '1rem' }}>
+            <img
+              src={imageSrc}
+              alt={`${title} page ${pageNum + 1}`}
+              className="document-page-image"
+              style={{
+                width: `${scaleRatio * 100}%`,
+                maxWidth: 'none',
+                height: 'auto',
+                transition: 'width 0.2s ease',
+              }}
+            />
+          </div>
         )}
 
         {renderType === 'text' && (
-          <div className="document-text-container">
+          <div
+            className="document-text-container"
+            style={{
+              fontSize: `${scaleRatio * 0.875}rem`,
+              lineHeight: 1.65,
+              width: '100%',
+              minHeight: '100%',
+            }}
+          >
             {textContent || 'No text content available.'}
           </div>
         )}
@@ -39,3 +57,4 @@ export default function DocumentViewer({ renderType, imageSrc, textContent, page
     </div>
   );
 }
+

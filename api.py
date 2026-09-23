@@ -388,6 +388,14 @@ async def download_report(job_id: str):
         raise HTTPException(status_code=404, detail="Report file not found")
 
     with open(report_path, "r", encoding="utf-8") as f:
-        report = json.load(f)
+        report_bytes = f.read().encode("utf-8")
 
-    return JSONResponse(report)
+    filename = f"pii_redaction_report_{job_id[:8]}.json"
+    return Response(
+        content=report_bytes,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        },
+    )
+

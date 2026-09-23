@@ -6,14 +6,14 @@
 
 :root, [data-theme="dark"] {
   --bg-dark: #070b14;
-  --bg-surface: #0f172a;
-  --bg-surface-elevated: #1e293b;
-  --bg-glass: rgba(15, 23, 42, 0.75);
-  --bg-glass-hover: rgba(30, 41, 59, 0.85);
+  --bg-surface: rgba(15, 23, 42, 0.45);
+  --bg-surface-elevated: rgba(30, 41, 59, 0.55);
+  --bg-glass: rgba(15, 23, 42, 0.48);
+  --bg-glass-hover: rgba(30, 41, 59, 0.68);
   
-  --border-subtle: rgba(255, 255, 255, 0.09);
-  --border-active: rgba(99, 102, 241, 0.5);
-  --border-glow: rgba(99, 102, 241, 0.3);
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-active: rgba(99, 102, 241, 0.6);
+  --border-glow: rgba(99, 102, 241, 0.35);
   
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
@@ -21,25 +21,25 @@
   
   --accent-primary: #6366f1;
   --accent-primary-hover: #4f46e5;
-  --accent-glow: rgba(99, 102, 241, 0.25);
+  --accent-glow: rgba(99, 102, 241, 0.28);
   --accent-gradient: linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #c084fc 100%);
   --accent-gradient-hover: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #a855f7 100%);
   
   --success: #10b981;
-  --success-bg: rgba(16, 185, 129, 0.12);
+  --success-bg: rgba(16, 185, 129, 0.16);
   --warning: #f59e0b;
-  --warning-bg: rgba(245, 158, 11, 0.12);
+  --warning-bg: rgba(245, 158, 11, 0.16);
   --danger: #ef4444;
-  --danger-bg: rgba(239, 68, 68, 0.12);
+  --danger-bg: rgba(239, 68, 68, 0.16);
   --info: #38bdf8;
-  --info-bg: rgba(56, 189, 248, 0.12);
+  --info-bg: rgba(56, 189, 248, 0.16);
   
-  --pane-bg: #030712;
-  --code-bg: #090d16;
+  --pane-bg: rgba(3, 7, 18, 0.65);
+  --code-bg: rgba(9, 13, 22, 0.85);
   --code-text: #e2e8f0;
-  --input-bg: rgba(30, 41, 59, 0.6);
+  --input-bg: rgba(30, 41, 59, 0.5);
 
-  --shadow-glow: 0 0 35px rgba(99, 102, 241, 0.22);
+  --shadow-glow: 0 0 35px rgba(99, 102, 241, 0.25);
   --shadow-lg: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
   --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.3);
 
@@ -53,10 +53,11 @@
 
 [data-theme="light"] {
   --bg-dark: #f8fafc;
-  --bg-surface: #ffffff;
-  --bg-surface-elevated: #f1f5f9;
-  --bg-glass: rgba(255, 255, 255, 0.82);
-  --bg-glass-hover: rgba(241, 245, 249, 0.95);
+  --bg-surface: rgba(255, 255, 255, 0.55);
+  --bg-surface-elevated: rgba(241, 245, 249, 0.75);
+  --bg-glass: rgba(255, 255, 255, 0.58);
+  --bg-glass-hover: rgba(241, 245, 249, 0.82);
+
   
   --border-subtle: rgba(0, 0, 0, 0.1);
   --border-active: rgba(79, 70, 229, 0.5);
