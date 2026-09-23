@@ -173,9 +173,23 @@ _ORG_SUSPICION_TERMS = {
 }
 
 _ORG_LEGAL_OR_BRAND_TERMS = {
-    "emerson", "microsoft", "inc", "ltd", "limited", "corp", "corporation",
-    "llc", "plc", "solutions", "systems", "technologies", "services",
-    "group", "holdings", "centre", "center"
+    "emerson", "microsoft", "google", "apple", "amazon", "oracle", "ibm", "cisco",
+    "siemens", "honeywell", "intel", "samsung", "sony", "tata", "infosys", "wipro",
+    "accenture", "cognizant", "dell", "hp", "nvidia", "amd", "tesla", "meta",
+    "facebook", "adobe", "salesforce", "inc", "ltd", "limited", "corp", "corporation",
+    "llc", "plc", "solutions", "systems", "technologies", "services", "group",
+    "holdings", "centre", "center", "pvt"
+}
+
+GEOGRAPHIC_LOCATION_TERMS = {
+    "india", "indian", "usa", "us", "america", "american", "uk", "england", "english",
+    "japan", "japanese", "china", "chinese", "germany", "german", "france", "french",
+    "singapore", "singaporean", "australia", "australian", "canada", "canadian",
+    "brazil", "brazilian", "russia", "russian", "spain", "spanish", "italy", "italian",
+    "korea", "korean", "delhi", "mumbai", "pune", "bangalore", "bengaluru", "hyderabad",
+    "chennai", "kolkata", "london", "tokyo", "paris", "berlin", "beijing", "shanghai",
+    "hongkong", "taiwan", "vietnam", "thailand", "malaysia", "indonesia", "mexico",
+    "netherlands", "switzerland", "sweden", "norway", "denmark", "finland", "ireland"
 }
 
 
@@ -188,22 +202,46 @@ def _should_skip_entity(text: str, category: str) -> bool:
     lower = normalized.lower()
     words = _normalized_words(normalized)
 
-    if not normalized or lower in REJECT_TITLE_WORDS:
+    if not normalized or lower in REJECT_TITLE_WORDS or lower in FALSE_ORG_TERMS:
+        return True
+
+    # Reject non-alphanumeric noise symbols (e.g. '|', '_', '-', 'I', etc.)
+    if not any(c.isalnum() for c in normalized):
+        return True
+
+    # Reject single-word 1 or 2 character tokens (e.g. 'ca', 'in', 'or', 'ex', 'I', 'l', 'a')
+    if len(words) <= 1 and len(normalized) <= 2:
+        return True
+
+    # Reject job titles, department terms, and signature block labels
+    job_title_terms = {"admin", "hr", "director", "signatory", "signature", "authorized", "executive", "officer"}
+    if any(w in job_title_terms for w in words) and len(words) <= 3:
         return True
 
     if category == "ORGANIZATION":
-        if lower in FALSE_ORG_TERMS:
+        if lower in FALSE_ORG_TERMS or lower in GEOGRAPHIC_LOCATION_TERMS:
             return True
         if words and all(w in FALSE_ORG_TERMS for w in words):
             return True
 
     if category == "PERSON_NAME":
+        # Skip single-word person names (e.g. cursive OCR noise like "Zaegark", "Admin", "Director")
+        if len(words) == 1:
+            return True
         if any(w in FALSE_ORG_TERMS for w in words):
             return True
         if any(w in _ORG_SUSPICION_TERMS for w in words):
             return True
+        if any(w in _ORG_LEGAL_OR_BRAND_TERMS for w in words):
+            return True
+        if any(w in GEOGRAPHIC_LOCATION_TERMS for w in words):
+            return True
+        if lower in _ORG_LEGAL_OR_BRAND_TERMS or lower in GEOGRAPHIC_LOCATION_TERMS:
+            return True
 
     return False
+
+
 
 
 def _adjust_confidence(category: str, text: str, score: float) -> float:
@@ -237,21 +275,6 @@ def detect_ner_pii(
     """
     Run spaCy NER and context rules over *text* and return name, location,
     and organization detections.
-
-    Args:
-        text:    The full document text to scan.
-        include: If provided, ONLY these output category names are returned.
-                 Example: ["PERSON_NAME", "ORGANIZATION"]
-        exclude: If provided, these output category names are skipped.
-                 Example: ["LOCATION"]
-                 Ignored when *include* is also supplied.
-
-    Returns:
-        A list of detection dicts (text, category, start, end,
-        detection_method, confidence) — ready to be merged.
-
-    Category names (pass these to include/exclude):
-        PERSON_NAME, LOCATION, ORGANIZATION
     """
     all_output_labels = set(LABEL_MAP.values())   # {"PERSON_NAME", "LOCATION", "ORGANIZATION"}
 
@@ -270,7 +293,7 @@ def detect_ner_pii(
     # 1. Run contextual / rule-assisted detector first
     context_hits = detect_context_pii(text)
     for hit in context_hits:
-        if hit["category"] in active:
+        if hit["category"] in active and not _should_skip_entity(hit["text"], hit["category"]):
             detections.append(hit)
 
     # 2. Run spaCy NER
@@ -278,10 +301,21 @@ def detect_ner_pii(
 
     for ent in doc.ents:
         output_category = LABEL_MAP.get(ent.label_)
-        if output_category is None or output_category not in active:
+        if output_category is None:
             continue
 
         ent_text = ent.text.strip()
+        words = _normalized_words(ent_text)
+
+        # Smart Category Correction: Remap misclassified PERSON labels for known brand / location terms
+        if output_category == "PERSON_NAME":
+            if any(w in _ORG_LEGAL_OR_BRAND_TERMS for w in words):
+                output_category = "ORGANIZATION"
+            elif any(w in GEOGRAPHIC_LOCATION_TERMS for w in words):
+                output_category = "LOCATION"
+
+        if output_category not in active:
+            continue
 
         # Skip rejection words and common technical false positives.
         if _should_skip_entity(ent_text, output_category):
