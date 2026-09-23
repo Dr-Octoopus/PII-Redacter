@@ -46,8 +46,17 @@ def merge_detections(regex_hits: list[dict],
         if overlap_index is None:
             merged.append(hit)
         else:
-            # Keep whichever of the two has higher confidence.
             existing = merged[overlap_index]
+            # Preference rule: if categories differ on overlapping span,
+            # prefer ORGANIZATION / LOCATION over PERSON_NAME if confidences are close
+            if existing["category"] == "PERSON_NAME" and hit["category"] in {"ORGANIZATION", "LOCATION"}:
+                if hit["confidence"] >= existing["confidence"] - 0.05:
+                    merged[overlap_index] = hit
+                    continue
+            elif hit["category"] == "PERSON_NAME" and existing["category"] in {"ORGANIZATION", "LOCATION"}:
+                if existing["confidence"] >= hit["confidence"] - 0.05:
+                    continue
+
             if hit["confidence"] > existing["confidence"]:
                 merged[overlap_index] = hit
 
