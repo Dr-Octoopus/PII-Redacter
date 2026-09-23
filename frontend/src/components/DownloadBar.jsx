@@ -11,18 +11,18 @@ export default function DownloadBar({ jobId, filename, onReset }) {
   };
 
   return (
-    <div className="glass-card" style={{ padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="glass-card" style={{ padding: '1.35rem 1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
       <button className="btn btn-outline" onClick={onReset}>
-        <ArrowLeft size={16} /> Redact Another Document
+        <ArrowLeft size={17} /> Redact Another Document
       </button>
 
-      <div style={{ display: 'flex', gap: '0.75rem' }}>
+      <div style={{ display: 'flex', gap: '0.85rem', flexWrap: 'wrap' }}>
         <button className="btn btn-secondary" onClick={handleDownloadReport}>
-          <FileJson size={16} color="#38bdf8" /> Download JSON Report
+          <FileJson size={17} color="var(--info)" /> Download JSON Audit Report
         </button>
 
         <button className="btn btn-primary" onClick={handleDownloadRedacted}>
-          <Download size={16} /> Download Redacted File
+          <Download size={17} /> Download Redacted File
         </button>
       </div>
     </div>

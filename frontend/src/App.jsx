@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ShieldCheck, Cpu } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, Cpu, Sun, Moon, Sparkles } from 'lucide-react';
 import FileDropzone from './components/FileDropzone';
 import ComparisonView from './components/ComparisonView';
 import DetectionSummary from './components/DetectionSummary';
@@ -10,6 +10,18 @@ export default function App() {
   const [jobData, setJobData] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('pii_theme') || 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('pii_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prevTheme) => (prevTheme === 'dark' ? 'light' : 'dark'));
+  };
 
   const handleUpload = async (file, categories) => {
     setIsUploading(true);
@@ -47,27 +59,52 @@ export default function App() {
   };
 
   return (
-    <div style={{ position: 'relative', minHeight: '100vh', background: 'var(--bg-dark)' }}>
-      {/* 3D Three.js Interactive Particle Background */}
-      <ThreeBackground />
+    <div style={{ position: 'relative', minHeight: '100vh' }}>
+      {/* 3D High-Level Three.js Holographic Cyber Background */}
+      <ThreeBackground theme={theme} />
 
       {/* App Header */}
-      <header className="app-header" style={{ position: 'relative', zIndex: 10 }}>
+      <header className="app-header">
         <div className="logo-container">
-          <ShieldCheck size={24} color="#6366f1" />
-          <span>PII Redactor Engine</span>
+          <ShieldCheck size={26} color="var(--accent-primary)" />
+          <span className="brand-gradient-text">PII Redactor Engine</span>
           <span className="badge-trf">
-            <Cpu size={12} style={{ marginRight: 4, display: 'inline' }} />
+            <Cpu size={12} />
             Transformer NER
           </span>
         </div>
 
-        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-          Secure Document Processing
+        {/* Rightmost Theme Toggle Switch */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Sparkles size={13} color="var(--accent-primary)" /> Secure Processing
+          </div>
+
+          <button
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? (
+              <>
+                <Moon size={15} color="#818cf8" />
+                <span>Dark</span>
+              </>
+            ) : (
+              <>
+                <Sun size={15} color="#f59e0b" />
+                <span>Light</span>
+              </>
+            )}
+            <div className="theme-toggle-track">
+              <div className="theme-toggle-thumb" />
+            </div>
+          </button>
         </div>
       </header>
 
-      {/* Main Layout */}
+      {/* Main Container */}
       <main className="main-container" style={{ position: 'relative', zIndex: 1 }}>
         {!jobData ? (
           <FileDropzone
