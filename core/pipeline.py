@@ -42,11 +42,12 @@ from core.merge import merge_detections
 from core.redactor import redact_docx, redact_pdf, redact_txt, redact_xlsx
 from core.report import build_json_report, save_report
 from parsers.docx_parser import parse_docx
+from parsers.ocr_parser import IMAGE_EXTENSIONS, get_ocr_status, parse_image_ocr, redact_image
 from parsers.pdf_parser import parse_pdf
 from parsers.txt_parser import parse_txt
 from parsers.xlsx_parser import parse_xlsx
 
-SUPPORTED_EXTENSIONS = {".txt", ".docx", ".pdf", ".xlsx"}
+SUPPORTED_EXTENSIONS = {".txt", ".docx", ".pdf", ".xlsx"} | IMAGE_EXTENSIONS
 
 
 def process_document(
@@ -92,6 +93,11 @@ def process_document(
     # ------------------------------------------------------------------ #
     # Step 1 — Parse the document into plain text                         #
     # ------------------------------------------------------------------ #
+    if extension in {".pdf", ".docx"} | IMAGE_EXTENSIONS:
+        ocr_status = get_ocr_status()
+        if not ocr_status.available and ocr_status.warning:
+            warnings.append(ocr_status.warning)
+
     if extension == ".txt":
         text = parse_txt(filepath)
         structure_map = None
@@ -99,13 +105,20 @@ def process_document(
         text, structure_map = parse_docx(filepath)
     elif extension == ".xlsx":
         text, structure_map = parse_xlsx(filepath)
-    else:  # .pdf
+    elif extension == ".pdf":
         text, structure_map = parse_pdf(filepath)
         if len(text.strip()) < 20:
             warnings.append(
                 "Very little text could be extracted from this PDF. "
-                "It may be a scanned/image-only document — OCR is "
-                "not yet supported, so please review it manually."
+                "It may be a scanned/image-only document. Please review "
+                "it manually if OCR did not recover the expected text."
+            )
+    else:  # image file
+        text, structure_map = parse_image_ocr(filepath)
+        if len(text.strip()) < 1:
+            warnings.append(
+                "No text could be extracted from this image. If OCR is "
+                "available, please check the image quality and language."
             )
 
     # ------------------------------------------------------------------ #
@@ -128,8 +141,10 @@ def process_document(
         redact_docx(filepath, entities, structure_map, redacted_path)
     elif extension == ".xlsx":
         redact_xlsx(filepath, entities, structure_map, redacted_path)
-    else:  # .pdf
+    elif extension == ".pdf":
         redact_pdf(filepath, entities, structure_map, redacted_path)
+    else:  # image file
+        redact_image(filepath, entities, structure_map, redacted_path)
 
     # ------------------------------------------------------------------ #
     # Step 4 — Build and save the JSON report                             #
@@ -161,6 +176,8 @@ def _expand_consistent_entities(text: str, entities: list[dict]) -> list[dict]:
     the same literal string elsewhere. Propagating exact matches keeps the
     document consistent while avoiding fuzzy guesses.
     """
+    from detectors.ner_detector import _should_skip_entity
+
     semantic_categories = {"PERSON_NAME", "ORGANIZATION", "LOCATION"}
     expanded = list(entities)
 
@@ -172,6 +189,7 @@ def _expand_consistent_entities(text: str, entities: list[dict]) -> list[dict]:
         if e["category"] in semantic_categories
         and e.get("confidence", 0) >= 0.85
         and len(e.get("text", "").strip()) >= 4
+        and not _should_skip_entity(e.get("text", ""), e["category"])
     ]
 
     seen_seeds: set[tuple[str, str]] = set()
@@ -189,10 +207,13 @@ def _expand_consistent_entities(text: str, entities: list[dict]) -> list[dict]:
             pattern_text = pattern_text + r"(?!\w)"
 
         for match in re.finditer(pattern_text, text, flags=re.IGNORECASE):
+            matched_str = match.group()
+            if _should_skip_entity(matched_str, entity["category"]):
+                continue
             if overlaps_existing(match.start(), match.end()):
                 continue
             expanded.append({
-                "text": match.group(),
+                "text": matched_str,
                 "category": entity["category"],
                 "start": match.start(),
                 "end": match.end(),
