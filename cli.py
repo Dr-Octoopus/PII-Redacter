@@ -47,7 +47,7 @@ def main() -> None:
     )
     parser.add_argument(
         "filepath",
-        help="Path to the input document (.txt, .docx, .pdf, or .xlsx)",
+        help="Path to the input document (.txt, .docx, .pdf, .xlsx, or image)",
     )
     parser.add_argument(
         "--output-dir",
