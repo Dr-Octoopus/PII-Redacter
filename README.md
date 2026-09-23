@@ -16,7 +16,7 @@
 
 ## ✨ What It Does
 
-**PII Redactor** scans `.txt`, `.docx`, `.pdf`, and `.xlsx` files for sensitive personal data using a combination of **rule-based regex** and **local spaCy NER** (Named Entity Recognition). It produces two outputs for every document:
+**PII Redactor** scans `.txt`, `.docx`, `.pdf`, `.xlsx`, and common image files for sensitive personal data using a combination of **rule-based regex**, **local spaCy NER** (Named Entity Recognition), and optional OCR for image-only text. It produces two outputs for every document:
 
 | Output | Description |
 |---|---|
@@ -64,6 +64,14 @@ pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 ```
 
+For OCR on images, scanned PDF regions, or images embedded in DOCX files, install the Tesseract system package too:
+
+```bash
+sudo apt-get install tesseract-ocr
+```
+
+If Tesseract is not installed, normal text redaction still works and the JSON report includes an OCR warning.
+
 ### 3. Install & run the frontend (optional)
 
 ```bash
@@ -108,7 +116,7 @@ python cli.py document.pdf --exclude PINCODE,LOCATION
 
 ```
 positional arguments:
-  filepath              Path to the input document (.txt, .docx, .pdf, or .xlsx)
+  filepath              Path to the input document (.txt, .docx, .pdf, .xlsx, or image)
 
 options:
   --output-dir OUTDIR   Directory for output files (default: ./output)
