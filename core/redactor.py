@@ -41,6 +41,8 @@ import pymupdf as fitz  # PyMuPDF (modern import path)
 from docx import Document
 from openpyxl import load_workbook
 
+from parsers.ocr_parser import redact_docx_images, redact_pdf_ocr_regions
+
 MASK_TEXT = "[REDACTED]"
 
 
@@ -104,6 +106,9 @@ def redact_docx(
     document = Document(filepath)
 
     for element_info in structure_map:
+        if element_info.get("kind"):
+            continue
+
         # Find entities that fall inside this element.
         elem_entities = [
             e for e in entities
@@ -130,6 +135,7 @@ def redact_docx(
         else:
             paragraph.text = new_text
 
+    redact_docx_images(document, structure_map, entities)
     document.save(output_path)
 
 
@@ -185,6 +191,9 @@ def redact_pdf(
             for rect in rects:
                 page.add_redact_annot(rect, text="", fill=(0, 0, 0))
 
+        if structure_map and page_number < len(structure_map):
+            redact_pdf_ocr_regions(page, page_info, page_entities)
+
         page.apply_redactions()
 
     doc.save(output_path)
@@ -193,51 +202,71 @@ def redact_pdf(
 
 def _search_text_on_page(page, text: str) -> list:
     """
-    Safely search for text on a page without over-redacting common words.
+    Safely search for text on a page enforcing whole-word boundaries
+    so short words/entities (e.g. "ca", "in", "or") do NOT redact substrings
+    inside larger words (e.g. "physically", "carrying", "learning").
     """
-    # Strategy 1: Exact match on page
-    rects = page.search_for(text)
-    if rects:
-        return rects
+    text = text.strip()
+    if not text:
+        return []
 
-    # Strategy 2: If multi-line/mult-span text, search line by line or phrase by phrase
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if len(lines) > 1:
-        line_rects = []
-        for line in lines:
-            if len(line) >= 3 and line.lower() not in STOPWORDS:
-                found = page.search_for(line)
-                if found:
-                    line_rects.extend(found)
-        if line_rects:
-            return line_rects
-
-    # Strategy 3: For wrapped phrases, try adjacent non-empty line pairs.
-    # Avoid falling back to individual words: a false ORG span such as
-    # "Tools Factory API" must not redact every "Tools" or "API" token on
-    # the page.
-    if len(lines) > 1:
-        pair_rects = []
-        for first, second in zip(lines, lines[1:]):
-            phrase = f"{first} {second}".strip()
-            if len(phrase) >= 6:
-                found = page.search_for(phrase)
-                if found:
-                    pair_rects.extend(found)
-        if pair_rects:
-            return pair_rects
-
-    # Strategy 4: Multi-word phrases sometimes fail because PDF extraction
-    # inserts repeated spaces. Retry with normalized whitespace.
     words = text.split()
-    if len(words) > 1:
+    page_words = page.get_text("words")  # tuples: (x0, y0, x1, y1, word_str, block_no, line_no, word_no)
+
+    # 1. Single-word entity: match against page_words using exact word token comparison
+    if len(words) == 1:
+        target_lower = text.lower()
+        matched_rects = []
+        for w in page_words:
+            w_text = w[4]
+            clean_w = w_text.strip(".,;:()[]{}'\"-—").lower()
+            if clean_w == target_lower:
+                matched_rects.append(fitz.Rect(w[0], w[1], w[2], w[3]))
+        if matched_rects:
+            return matched_rects
+
+    # 2. Multi-word phrase or fallback: search using page.search_for and filter boundary overlaps
+    raw_rects = page.search_for(text)
+    if not raw_rects and len(words) > 1:
         normalized = " ".join(words)
         if normalized != text:
-            rects = page.search_for(normalized)
-            if rects:
-                return rects
+            raw_rects = page.search_for(normalized)
 
-    return []
+    if not raw_rects:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if len(lines) > 1:
+            for line in lines:
+                if len(line) >= 3 and line.lower() not in STOPWORDS:
+                    raw_rects.extend(page.search_for(line))
+
+    if not raw_rects:
+        return []
+
+    # Filter raw_rects to ensure they don't break mid-word
+    valid_rects = []
+    target_clean_len = len(text.strip(".,;:()[]{}'\"-—"))
+    for r in raw_rects:
+        is_subword = False
+        for w in page_words:
+            word_rect = fitz.Rect(w[0], w[1], w[2], w[3])
+            word_area = word_rect.width * word_rect.height
+            intersect = r & word_rect
+            intersect_area = intersect.width * intersect.height
+            if not intersect.is_empty and intersect_area > 0:
+                clean_w = w[4].strip(".,;:()[]{}'\"-—")
+                # If target text is shorter than clean_w and rect only covers a slice of clean_w
+                if target_clean_len < len(clean_w):
+                    overlap_ratio = intersect_area / max(1.0, word_area)
+                    if overlap_ratio < 0.80:
+                        is_subword = True
+                        break
+        if not is_subword and r.height <= 2.8 * r.width and r.width <= 15 * r.height:
+            valid_rects.append(r)
+
+    return valid_rects
+
+
+
 
 
 
