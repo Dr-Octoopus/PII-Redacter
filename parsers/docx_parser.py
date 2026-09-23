@@ -44,6 +44,8 @@ object it needs to edit in place.
 
 from docx import Document
 
+from parsers.ocr_parser import extract_docx_image_ocr
+
 
 def parse_docx(filepath: str) -> tuple[str, list[dict]]:
     """
@@ -114,6 +116,11 @@ def parse_docx(filepath: str) -> tuple[str, list[dict]]:
 
                     full_text_parts.append(text)
                     running_offset = end + 1
+
+    image_text, image_entries = extract_docx_image_ocr(document, running_offset)
+    if image_text:
+        full_text_parts.append(image_text)
+        structure_map.extend(image_entries)
 
     full_text = "\n".join(full_text_parts)
     return full_text, structure_map
