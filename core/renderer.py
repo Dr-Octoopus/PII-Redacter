@@ -24,6 +24,9 @@ import tempfile
 from io import BytesIO
 
 import pymupdf as fitz
+from PIL import Image
+
+from parsers.ocr_parser import IMAGE_EXTENSIONS
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +270,14 @@ def render_txt_content(filepath: str) -> str:
         return f.read()
 
 
+def render_image_file(filepath: str) -> list[bytes]:
+    """Normalize a standalone image into a PNG preview page."""
+    with Image.open(filepath) as image:
+        output = BytesIO()
+        image.convert("RGB").save(output, format="PNG")
+        return [output.getvalue()]
+
+
 # ---------------------------------------------------------------------------
 # Unified rendering dispatch
 # ---------------------------------------------------------------------------
@@ -279,6 +290,13 @@ def render_document_pages(filepath: str) -> dict:
 
     if ext == ".pdf":
         pages = render_pdf_pages(filepath)
+        return {
+            "type": "image",
+            "pages": pages,
+            "total_pages": len(pages),
+        }
+    elif ext in IMAGE_EXTENSIONS:
+        pages = render_image_file(filepath)
         return {
             "type": "image",
             "pages": pages,
