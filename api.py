@@ -49,7 +49,7 @@ from core.renderer import render_document_pages
 app = FastAPI(
     title="PII Redaction Tool",
     description=(
-        "Upload a document (.txt, .docx, .pdf, .xlsx) and receive a zip "
+        "Upload a document (.txt, .docx, .pdf, .xlsx, or image) and receive a zip "
         "containing the redacted document and a structured JSON report.  "
         "Use the optional **include** / **exclude** fields to control which "
         "PII entity types are detected.\n\n"
@@ -135,7 +135,7 @@ def _parse_csv(value: Optional[str]) -> Optional[list[str]]:
 )
 async def redact_document(
     file: UploadFile = File(
-        ..., description="The document to redact (.txt, .docx, .pdf, .xlsx)"
+        ..., description="The document to redact (.txt, .docx, .pdf, .xlsx, or image)"
     ),
     include: Optional[str] = Form(
         default=None,
@@ -203,7 +203,7 @@ async def redact_document(
 )
 async def api_redact(
     file: UploadFile = File(
-        ..., description="The document to redact (.txt, .docx, .pdf, .xlsx)"
+        ..., description="The document to redact (.txt, .docx, .pdf, .xlsx, or image)"
     ),
     include: Optional[str] = Form(default=None),
     exclude: Optional[str] = Form(default=None),
