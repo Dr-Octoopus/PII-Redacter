@@ -18,9 +18,9 @@ export default function ThreeBackground({ theme = 'dark' }) {
       55,
       window.innerWidth / window.innerHeight,
       1,
-      2000
+      2500
     );
-    camera.position.set(0, 0, 520);
+    camera.position.set(0, 0, 540);
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -33,83 +33,85 @@ export default function ThreeBackground({ theme = 'dark' }) {
         globeMesh: new THREE.Color(0x6366f1),     // Indigo
         globeInner: new THREE.Color(0x1e1b4b),    // Deep Navy
         ring: new THREE.Color(0x06b6d4),          // Cyan
-        dots: new THREE.Color(0xc084fc),          // Purple
+        accent: new THREE.Color(0xc084fc),        // Purple
         particles: new THREE.Color(0x818cf8),     // Soft Indigo
-        lines: new THREE.Color(0x38bdf8),        // Light Blue
-        lineOpacity: 0.15,
       },
       light: {
         globeMesh: new THREE.Color(0x3b82f6),     // Blue
         globeInner: new THREE.Color(0xe0e7ff),    // Soft Blue Tint
         ring: new THREE.Color(0x8b5cf6),          // Violet
-        dots: new THREE.Color(0xec4899),          // Pink
+        accent: new THREE.Color(0xec4899),        // Pink
         particles: new THREE.Color(0x60a5fa),     // Light Blue
-        lines: new THREE.Color(0xa78bfa),        // Light Violet
-        lineOpacity: 0.1,
       },
     };
 
     let activePalette = themeRef.current === 'light' ? palettes.light : palettes.dark;
 
-    // 3. Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    // 3. Lighting Setup
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
     scene.add(ambientLight);
 
-    const pointLight = new THREE.PointLight(activePalette.globeMesh.getHex(), 3, 1000);
-    pointLight.position.set(250, 250, 350);
-    scene.add(pointLight);
+    const rightLight = new THREE.PointLight(activePalette.globeMesh.getHex(), 4, 1000);
+    rightLight.position.set(420, 200, 300);
+    scene.add(rightLight);
 
-    // 4. Elegant 3D Digital Globe Group
-    const globeGroup = new THREE.Group();
+    const leftLight = new THREE.PointLight(activePalette.ring.getHex(), 4, 1000);
+    leftLight.position.set(-420, -200, 300);
+    scene.add(leftLight);
 
-    // A. Outer Latitude/Longitude Wireframe Globe
+    // =========================================================================
+    // 4. RIGHT FLANK: CONTINUOUSLY ROTATING & FLOATING 3D GLOBE (X: +420)
+    // =========================================================================
+    const rightGlobeGroup = new THREE.Group();
+    rightGlobeGroup.position.set(420, 15, -20);
+
     const globeRadius = 210;
     const globeGeo = new THREE.SphereGeometry(globeRadius, 36, 24);
     const globeMat = new THREE.MeshPhongMaterial({
       color: activePalette.globeMesh,
       wireframe: true,
       transparent: true,
-      opacity: 0.22,
-      shininess: 80,
+      opacity: 0.48,
+      shininess: 90,
     });
     const globeMesh = new THREE.Mesh(globeGeo, globeMat);
-    globeGroup.add(globeMesh);
+    rightGlobeGroup.add(globeMesh);
 
-    // B. Inner Soft Atmosphere Core
+    // Inner Atmosphere Core
     const innerGeo = new THREE.SphereGeometry(globeRadius - 6, 32, 32);
     const innerMat = new THREE.MeshBasicMaterial({
       color: activePalette.globeInner,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.5,
     });
     const innerMesh = new THREE.Mesh(innerGeo, innerMat);
-    globeGroup.add(innerMesh);
+    rightGlobeGroup.add(innerMesh);
 
-    // C. Orbiting Digital Equatorial Ring
-    const ringGeo = new THREE.TorusGeometry(globeRadius + 45, 1.0, 16, 100);
+    // Orbiting Equatorial Ring
+    const ringGeo = new THREE.TorusGeometry(globeRadius + 48, 1.4, 16, 100);
     const ringMat = new THREE.MeshBasicMaterial({
       color: activePalette.ring,
       wireframe: true,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.55,
     });
     const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-    ringMesh.rotation.x = Math.PI / 2.8;
-    globeGroup.add(ringMesh);
+    ringMesh.rotation.x = Math.PI / 2.6;
+    rightGlobeGroup.add(ringMesh);
 
-    // D. Outer Orbiting Satellite Ring
-    const ring2Geo = new THREE.TorusGeometry(globeRadius + 85, 0.6, 12, 80);
+    // Outer Orbiting Satellite Ring
+    const ring2Geo = new THREE.TorusGeometry(globeRadius + 90, 0.9, 12, 80);
     const ring2Mat = new THREE.MeshBasicMaterial({
-      color: activePalette.dots,
+      color: activePalette.accent,
       wireframe: true,
       transparent: true,
-      opacity: 0.2,
+      opacity: 0.4,
     });
     const ring2Mesh = new THREE.Mesh(ring2Geo, ring2Mat);
-    ring2Mesh.rotation.y = Math.PI / 3.5;
-    globeGroup.add(ring2Mesh);
+    ring2Mesh.rotation.y = Math.PI / 3.2;
+    rightGlobeGroup.add(ring2Mesh);
 
-    // E. Surface Data Nodes (Points on Globe)
+    // Surface Data Nodes
     const nodeCount = 120;
     const nodeGeo = new THREE.BufferGeometry();
     const nodePositions = new Float32Array(nodeCount * 3);
@@ -125,44 +127,102 @@ export default function ThreeBackground({ theme = 'dark' }) {
 
     nodeGeo.setAttribute('position', new THREE.BufferAttribute(nodePositions, 3));
     const nodeMat = new THREE.PointsMaterial({
-      color: activePalette.dots,
-      size: 4.5,
+      color: activePalette.accent,
+      size: 5.2,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.95,
     });
     const nodePoints = new THREE.Points(nodeGeo, nodeMat);
-    globeGroup.add(nodePoints);
+    rightGlobeGroup.add(nodePoints);
 
-    scene.add(globeGroup);
+    scene.add(rightGlobeGroup);
 
-    // 5. Subtle Ambient Background Particle Stream
-    const particleCount = 160;
+    // =========================================================================
+    // 5. LEFT FLANK: CONTINUOUSLY ROTATING & FLOATING CYBER CORE (X: -420)
+    // =========================================================================
+    const leftGlobeGroup = new THREE.Group();
+    leftGlobeGroup.position.set(-420, -15, -20);
+
+    const leftRadius = 185;
+    const leftGlobeGeo = new THREE.IcosahedronGeometry(leftRadius, 2);
+    const leftGlobeMat = new THREE.MeshPhongMaterial({
+      color: activePalette.ring,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.45,
+      shininess: 85,
+    });
+    const leftGlobeMesh = new THREE.Mesh(leftGlobeGeo, leftGlobeMat);
+    leftGlobeGroup.add(leftGlobeMesh);
+
+    // Left Inner Reactor Octahedron
+    const leftInnerGeo = new THREE.OctahedronGeometry(leftRadius - 60, 1);
+    const leftInnerMat = new THREE.MeshStandardMaterial({
+      color: activePalette.accent,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.75,
+    });
+    const leftInnerMesh = new THREE.Mesh(leftInnerGeo, leftInnerMat);
+    leftGlobeGroup.add(leftInnerMesh);
+
+    // Left Torus Ring
+    const leftRingGeo = new THREE.TorusGeometry(leftRadius + 46, 1.2, 16, 90);
+    const leftRingMat = new THREE.MeshBasicMaterial({
+      color: activePalette.globeMesh,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.5,
+    });
+    const leftRingMesh = new THREE.Mesh(leftRingGeo, leftRingMat);
+    leftRingMesh.rotation.x = -Math.PI / 3;
+    leftGlobeGroup.add(leftRingMesh);
+
+    scene.add(leftGlobeGroup);
+
+    // =========================================================================
+    // 6. AMBIENT BACKGROUND PARTICLE DRIFT STREAM
+    // =========================================================================
+    const particleCount = 240;
     const particleGeo = new THREE.BufferGeometry();
     const pPositions = new Float32Array(particleCount * 3);
+    const pVelocities = [];
 
     for (let i = 0; i < particleCount; i++) {
-      pPositions[i * 3] = (Math.random() - 0.5) * 1100;
-      pPositions[i * 3 + 1] = (Math.random() - 0.5) * 800;
-      pPositions[i * 3 + 2] = (Math.random() - 0.5) * 450;
+      const x = (Math.random() - 0.5) * 1350;
+      const y = (Math.random() - 0.5) * 950;
+      const z = (Math.random() - 0.5) * 450;
+
+      pPositions[i * 3] = x;
+      pPositions[i * 3 + 1] = y;
+      pPositions[i * 3 + 2] = z;
+
+      pVelocities.push({
+        x: (Math.random() - 0.5) * 0.6,
+        y: (Math.random() - 0.5) * 0.6,
+        z: (Math.random() - 0.5) * 0.3,
+      });
     }
 
     particleGeo.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
     const particleMat = new THREE.PointsMaterial({
       color: activePalette.particles,
-      size: 3.5,
+      size: 4.2,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.65,
     });
     const particleSystem = new THREE.Points(particleGeo, particleMat);
     scene.add(particleSystem);
 
-    // 6. Smooth Mouse Parallax
+    // =========================================================================
+    // 7. CONTINUOUS HIGH-VELOCITY ANIMATION ENGINE
+    // =========================================================================
     let mouseX = 0;
     let mouseY = 0;
 
     const handleMouseMove = (e) => {
-      mouseX = (e.clientX - window.innerWidth / 2) * 0.15;
-      mouseY = (e.clientY - window.innerHeight / 2) * 0.15;
+      mouseX = (e.clientX - window.innerWidth / 2) * 0.2;
+      mouseY = (e.clientY - window.innerHeight / 2) * 0.2;
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -175,35 +235,68 @@ export default function ThreeBackground({ theme = 'dark' }) {
 
     window.addEventListener('resize', handleResize);
 
-    // 7. Silky Animation Loop
     let animationFrameId;
-    const clock = new THREE.Clock();
+    let time = 0;
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      time += 0.02;
 
-      // Theme Color Smooth Interpolation
+      // Theme Color Interpolation
       const targetPalette = themeRef.current === 'light' ? palettes.light : palettes.dark;
       globeMat.color.lerp(targetPalette.globeMesh, 0.05);
       innerMat.color.lerp(targetPalette.globeInner, 0.05);
       ringMat.color.lerp(targetPalette.ring, 0.05);
-      ring2Mat.color.lerp(targetPalette.dots, 0.05);
-      nodeMat.color.lerp(targetPalette.dots, 0.05);
+      ring2Mat.color.lerp(targetPalette.accent, 0.05);
+      nodeMat.color.lerp(targetPalette.accent, 0.05);
+      leftGlobeMat.color.lerp(targetPalette.ring, 0.05);
+      leftInnerMat.color.lerp(targetPalette.accent, 0.05);
+      leftRingMat.color.lerp(targetPalette.globeMesh, 0.05);
       particleMat.color.lerp(targetPalette.particles, 0.05);
-      pointLight.color.lerp(targetPalette.globeMesh, 0.05);
+      rightLight.color.lerp(targetPalette.globeMesh, 0.05);
+      leftLight.color.lerp(targetPalette.ring, 0.05);
 
-      // Smooth Globe Rotation
-      globeMesh.rotation.y = elapsed * 0.08;
-      globeMesh.rotation.x = Math.sin(elapsed * 0.04) * 0.05;
+      // A. Dynamic Floating Orbit Drift across Canvas
+      rightGlobeGroup.position.x = 420 + Math.sin(time * 0.9) * 55;
+      rightGlobeGroup.position.y = 15 + Math.cos(time * 0.8) * 35;
+      rightGlobeGroup.position.z = -20 + Math.sin(time * 0.5) * 25;
 
-      ringMesh.rotation.z = elapsed * 0.12;
-      ring2Mesh.rotation.z = -elapsed * 0.09;
-      nodePoints.rotation.y = elapsed * 0.08;
+      leftGlobeGroup.position.x = -420 - Math.sin(time * 0.9) * 55;
+      leftGlobeGroup.position.y = -15 - Math.cos(time * 0.8) * 35;
+      leftGlobeGroup.position.z = -20 + Math.cos(time * 0.5) * 25;
 
-      // Gentle Camera Parallax Follow
-      camera.position.x += (mouseX - camera.position.x) * 0.03;
-      camera.position.y += (-mouseY - camera.position.y) * 0.03;
+      // B. ENTIRE 3D GROUP ROTATION (Spinning whole globe assemblies!)
+      rightGlobeGroup.rotation.y += 0.018;
+      rightGlobeGroup.rotation.x += 0.008;
+
+      leftGlobeGroup.rotation.y -= 0.022;
+      leftGlobeGroup.rotation.z += 0.01;
+
+      // C. Sub-mesh internal counter-rotations
+      globeMesh.rotation.y += 0.01;
+      ringMesh.rotation.z += 0.025;
+      ring2Mesh.rotation.z -= 0.02;
+
+      leftGlobeMesh.rotation.y -= 0.012;
+      leftInnerMesh.rotation.y += 0.025;
+      leftRingMesh.rotation.z += 0.025;
+
+      // D. Particle Stream Drifting
+      const pArr = particleGeo.attributes.position.array;
+      for (let i = 0; i < particleCount; i++) {
+        pArr[i * 3] += pVelocities[i].x;
+        pArr[i * 3 + 1] += pVelocities[i].y;
+        pArr[i * 3 + 2] += pVelocities[i].z;
+
+        if (Math.abs(pArr[i * 3]) > 700) pVelocities[i].x *= -1;
+        if (Math.abs(pArr[i * 3 + 1]) > 500) pVelocities[i].y *= -1;
+        if (Math.abs(pArr[i * 3 + 2]) > 280) pVelocities[i].z *= -1;
+      }
+      particleGeo.attributes.position.needsUpdate = true;
+
+      // E. Smooth Camera Parallax Response
+      camera.position.x += (mouseX - camera.position.x) * 0.04;
+      camera.position.y += (-mouseY - camera.position.y) * 0.04;
       camera.lookAt(scene.position);
 
       renderer.render(scene, camera);
