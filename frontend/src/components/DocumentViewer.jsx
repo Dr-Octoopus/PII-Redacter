@@ -1,6 +1,36 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 
 export default function DocumentViewer({ renderType, imageSrc, textContent, pageNum, totalPages, title, zoomLevel = 100 }) {
+  const containerRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [startY, setStartY] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const [scrollTop, setScrollTop] = useState(0);
+
+  const handleMouseDown = (e) => {
+    if (renderType !== 'image') return;
+    setIsDragging(true);
+    setStartX(e.pageX - containerRef.current.offsetLeft);
+    setStartY(e.pageY - containerRef.current.offsetTop);
+    setScrollLeft(containerRef.current.scrollLeft);
+    setScrollTop(containerRef.current.scrollTop);
+  };
+
+  const handleMouseLeave = () => setIsDragging(false);
+  const handleMouseUp = () => setIsDragging(false);
+
+  const handleMouseMove = (e) => {
+    if (!isDragging || renderType !== 'image') return;
+    e.preventDefault();
+    const x = e.pageX - containerRef.current.offsetLeft;
+    const y = e.pageY - containerRef.current.offsetTop;
+    const walkX = (x - startX) * 1.5; // Drag speed multiplier
+    const walkY = (y - startY) * 1.5;
+    containerRef.current.scrollLeft = scrollLeft - walkX;
+    containerRef.current.scrollTop = scrollTop - walkY;
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div className="pane-header">
@@ -13,7 +43,12 @@ export default function DocumentViewer({ renderType, imageSrc, textContent, page
       </div>
 
       <div
+        ref={containerRef}
         className="pane-body"
+        onMouseDown={handleMouseDown}
+        onMouseLeave={handleMouseLeave}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
         style={{
           height: '720px',
           maxHeight: '72vh',
@@ -22,6 +57,7 @@ export default function DocumentViewer({ renderType, imageSrc, textContent, page
           width: '100%',
           padding: '1.25rem',
           background: 'var(--pane-bg)',
+          cursor: renderType === 'image' ? (isDragging ? 'grabbing' : 'grab') : 'auto',
         }}
       >
         {renderType === 'image' && imageSrc && (

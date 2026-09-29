@@ -266,20 +266,23 @@ export default function ThreeBackground({ theme = 'dark' }) {
       leftGlobeGroup.position.z = -20 + Math.cos(time * 0.5) * 25;
 
       // B. ENTIRE 3D GROUP ROTATION (Spinning whole globe assemblies!)
-      rightGlobeGroup.rotation.y += 0.018;
-      rightGlobeGroup.rotation.x += 0.008;
+      // Add interaction speed based on mouse movement distance from center
+      const interactionSpeed = 1 + (Math.abs(mouseX) + Math.abs(mouseY)) * 0.01;
+      
+      rightGlobeGroup.rotation.y += 0.005 * interactionSpeed;
+      rightGlobeGroup.rotation.x += 0.002 * interactionSpeed;
 
-      leftGlobeGroup.rotation.y -= 0.022;
-      leftGlobeGroup.rotation.z += 0.01;
+      leftGlobeGroup.rotation.y -= 0.006 * interactionSpeed;
+      leftGlobeGroup.rotation.z += 0.003 * interactionSpeed;
 
       // C. Sub-mesh internal counter-rotations
-      globeMesh.rotation.y += 0.01;
-      ringMesh.rotation.z += 0.025;
-      ring2Mesh.rotation.z -= 0.02;
+      globeMesh.rotation.y += 0.005 * interactionSpeed;
+      ringMesh.rotation.z += 0.01 * interactionSpeed;
+      ring2Mesh.rotation.z -= 0.008 * interactionSpeed;
 
-      leftGlobeMesh.rotation.y -= 0.012;
-      leftInnerMesh.rotation.y += 0.025;
-      leftRingMesh.rotation.z += 0.025;
+      leftGlobeMesh.rotation.y -= 0.005 * interactionSpeed;
+      leftInnerMesh.rotation.y += 0.01 * interactionSpeed;
+      leftRingMesh.rotation.z += 0.01 * interactionSpeed;
 
       // D. Particle Stream Drifting
       const pArr = particleGeo.attributes.position.array;
