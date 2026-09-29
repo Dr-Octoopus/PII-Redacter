@@ -44,6 +44,7 @@ entity types are returned.  Use the OUTPUT category names
 
 import warnings
 import spacy
+import re
 from typing import Optional
 
 # ---------------------------------------------------------------------------
@@ -378,5 +379,40 @@ def detect_ner_pii(
             "detection_method": "ner",
             "confidence":       confidence,
         })
+
+    # 3. Second pass for ALL CAPS text (common in ID cards / OCR)
+    # If the text has significant ALL CAPS words, spaCy might miss them.
+    # We title-case it and re-run.
+    if text.isupper() or len(re.findall(r'\b[A-Z]{3,}\b', text)) > 2:
+        title_text = text.title()
+        doc_title = _nlp(title_text)
+        for ent in doc_title.ents:
+            output_category = LABEL_MAP.get(ent.label_)
+            if output_category not in active:
+                continue
+            
+            ent_text_title = ent.text.strip()
+            ent_text_orig = text[ent.start_char:ent.start_char + len(ent_text_title)]
+            
+            # Make sure we got the boundaries right and it was actually all caps originally
+            if ent_text_orig.upper() == ent_text_title.upper() and ent_text_orig.isupper():
+                if _should_skip_entity(ent_text_orig, output_category):
+                    continue
+                
+                # Check for duplicates
+                duplicate = any(
+                    d["start"] == ent.start_char and d["end"] == ent.start_char + len(ent_text_orig)
+                    for d in detections
+                )
+                if not duplicate:
+                    confidence = _adjust_confidence(output_category, ent_text_orig, _compute_confidence(ent))
+                    detections.append({
+                        "text":             ent_text_orig,
+                        "category":         output_category,
+                        "start":            ent.start_char,
+                        "end":              ent.start_char + len(ent_text_orig),
+                        "detection_method": "ner",
+                        "confidence":       min(confidence, 0.85), # slightly lower confidence for title-case hack
+                    })
 
     return detections

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Cpu, Sun, Moon, Sparkles } from 'lucide-react';
+import { ShieldCheck, Sun, Moon } from 'lucide-react';
 import FileDropzone from './components/FileDropzone';
 import ComparisonView from './components/ComparisonView';
 import DetectionSummary from './components/DetectionSummary';
@@ -60,48 +60,38 @@ export default function App() {
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh' }}>
-      {/* 3D High-Level Three.js Holographic Cyber Background */}
+      {/* Sleek 3D Globe Background */}
       <ThreeBackground theme={theme} />
 
-      {/* App Header */}
+      {/* Clean & Glamorous Header */}
       <header className="app-header">
         <div className="logo-container">
           <ShieldCheck size={26} color="var(--accent-primary)" />
-          <span className="brand-gradient-text">PII Redactor Engine</span>
-          <span className="badge-trf">
-            <Cpu size={12} />
-            Transformer NER
-          </span>
+          <span className="brand-gradient-text">PII Redactor</span>
         </div>
 
-        {/* Rightmost Theme Toggle Switch */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Sparkles size={13} color="var(--accent-primary)" /> Secure Processing
+        {/* Theme Toggle Button */}
+        <button
+          className="theme-toggle-btn"
+          onClick={toggleTheme}
+          title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
+          aria-label="Toggle theme"
+        >
+          {theme === 'dark' ? (
+            <>
+              <Moon size={15} color="#818cf8" />
+              <span>Dark</span>
+            </>
+          ) : (
+            <>
+              <Sun size={15} color="#f59e0b" />
+              <span>Light</span>
+            </>
+          )}
+          <div className="theme-toggle-track">
+            <div className="theme-toggle-thumb" />
           </div>
-
-          <button
-            className="theme-toggle-btn"
-            onClick={toggleTheme}
-            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
-            aria-label="Toggle theme"
-          >
-            {theme === 'dark' ? (
-              <>
-                <Moon size={15} color="#818cf8" />
-                <span>Dark</span>
-              </>
-            ) : (
-              <>
-                <Sun size={15} color="#f59e0b" />
-                <span>Light</span>
-              </>
-            )}
-            <div className="theme-toggle-track">
-              <div className="theme-toggle-thumb" />
-            </div>
-          </button>
-        </div>
+        </button>
       </header>
 
       {/* Main Container */}

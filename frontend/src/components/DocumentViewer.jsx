@@ -1,8 +1,63 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 
-export default function DocumentViewer({ renderType, imageSrc, textContent, pageNum, totalPages, title }) {
+export default function DocumentViewer({ renderType, imageSrc, textContent, pageNum, totalPages, title, zoomLevel = 100 }) {
+  const containerRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [startY, setStartY] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const [scrollTop, setScrollTop] = useState(0);
+
+  // Mouse Drag Handlers
+  const handleMouseDown = (e) => {
+    if (renderType !== 'image') return;
+    setIsDragging(true);
+    setStartX(e.pageX - containerRef.current.offsetLeft);
+    setStartY(e.pageY - containerRef.current.offsetTop);
+    setScrollLeft(containerRef.current.scrollLeft);
+    setScrollTop(containerRef.current.scrollTop);
+  };
+
+  const handleMouseLeave = () => setIsDragging(false);
+  const handleMouseUp = () => setIsDragging(false);
+
+  const handleMouseMove = (e) => {
+    if (!isDragging || renderType !== 'image' || !containerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - containerRef.current.offsetLeft;
+    const y = e.pageY - containerRef.current.offsetTop;
+    const walkX = (x - startX) * 1.5;
+    const walkY = (y - startY) * 1.5;
+    containerRef.current.scrollLeft = scrollLeft - walkX;
+    containerRef.current.scrollTop = scrollTop - walkY;
+  };
+
+  // Touch / Trackpad Drag Handlers
+  const handleTouchStart = (e) => {
+    if (renderType !== 'image' || e.touches.length !== 1 || !containerRef.current) return;
+    setIsDragging(true);
+    const touch = e.touches[0];
+    setStartX(touch.pageX - containerRef.current.offsetLeft);
+    setStartY(touch.pageY - containerRef.current.offsetTop);
+    setScrollLeft(containerRef.current.scrollLeft);
+    setScrollTop(containerRef.current.scrollTop);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDragging || renderType !== 'image' || e.touches.length !== 1 || !containerRef.current) return;
+    const touch = e.touches[0];
+    const x = touch.pageX - containerRef.current.offsetLeft;
+    const y = touch.pageY - containerRef.current.offsetTop;
+    const walkX = (x - startX) * 1.5;
+    const walkY = (y - startY) * 1.5;
+    containerRef.current.scrollLeft = scrollLeft - walkX;
+    containerRef.current.scrollTop = scrollTop - walkY;
+  };
+
+  const handleTouchEnd = () => setIsDragging(false);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div className="pane-header">
         <span>{title}</span>
         {renderType === 'image' && (
@@ -12,17 +67,65 @@ export default function DocumentViewer({ renderType, imageSrc, textContent, page
         )}
       </div>
 
-      <div className="pane-body">
+      <div
+        ref={containerRef}
+        className="pane-body"
+        onMouseDown={handleMouseDown}
+        onMouseLeave={handleMouseLeave}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          height: '720px',
+          maxHeight: '72vh',
+          overflow: 'auto',
+          position: 'relative',
+          width: '100%',
+          padding: '1.25rem',
+          background: 'var(--pane-bg)',
+          cursor: renderType === 'image' ? (isDragging ? 'grabbing' : 'grab') : 'auto',
+          touchAction: 'pan-x pan-y',
+        }}
+      >
         {renderType === 'image' && imageSrc && (
-          <img
-            src={imageSrc}
-            alt={`${title} page ${pageNum + 1}`}
-            className="document-page-image"
-          />
+          <div
+            style={{
+              width: '100%',
+              minHeight: '100%',
+              textAlign: 'center',
+            }}
+          >
+            <img
+              src={imageSrc}
+              alt={`${title} page ${pageNum + 1}`}
+              className="document-page-image"
+              style={{
+                width: `${zoomLevel}%`,
+                maxWidth: 'none',
+                height: 'auto',
+                boxShadow: 'var(--shadow-lg)',
+                borderRadius: '6px',
+                transition: 'width 0.15s ease-out',
+                display: 'inline-block',
+                verticalAlign: 'top',
+              }}
+            />
+          </div>
         )}
 
         {renderType === 'text' && (
-          <div className="document-text-container">
+          <div
+            className="document-text-container"
+            style={{
+              fontSize: `${(zoomLevel / 100) * 0.925}rem`,
+              lineHeight: 1.7,
+              width: `${zoomLevel}%`,
+              minWidth: '100%',
+              minHeight: '100%',
+            }}
+          >
             {textContent || 'No text content available.'}
           </div>
         )}
@@ -39,3 +142,5 @@ export default function DocumentViewer({ renderType, imageSrc, textContent, page
     </div>
   );
 }
+
+
