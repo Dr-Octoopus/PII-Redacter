@@ -267,22 +267,22 @@ export default function ThreeBackground({ theme = 'dark' }) {
 
       // B. ENTIRE 3D GROUP ROTATION (Spinning whole globe assemblies!)
       // Add interaction speed based on mouse movement distance from center
-      const interactionSpeed = 1 + (Math.abs(mouseX) + Math.abs(mouseY)) * 0.01;
+      const interactionSpeed = 1 + (Math.abs(mouseX) + Math.abs(mouseY)) * 0.02;
       
-      rightGlobeGroup.rotation.y += 0.005 * interactionSpeed;
-      rightGlobeGroup.rotation.x += 0.002 * interactionSpeed;
+      rightGlobeGroup.rotation.y += 0.015 * interactionSpeed;
+      rightGlobeGroup.rotation.x += 0.010 * interactionSpeed;
 
-      leftGlobeGroup.rotation.y -= 0.006 * interactionSpeed;
-      leftGlobeGroup.rotation.z += 0.003 * interactionSpeed;
+      leftGlobeGroup.rotation.y -= 0.018 * interactionSpeed;
+      leftGlobeGroup.rotation.z += 0.012 * interactionSpeed;
 
       // C. Sub-mesh internal counter-rotations
-      globeMesh.rotation.y += 0.005 * interactionSpeed;
-      ringMesh.rotation.z += 0.01 * interactionSpeed;
-      ring2Mesh.rotation.z -= 0.008 * interactionSpeed;
+      globeMesh.rotation.y += 0.012 * interactionSpeed;
+      ringMesh.rotation.z += 0.020 * interactionSpeed;
+      ring2Mesh.rotation.z -= 0.018 * interactionSpeed;
 
-      leftGlobeMesh.rotation.y -= 0.005 * interactionSpeed;
-      leftInnerMesh.rotation.y += 0.01 * interactionSpeed;
-      leftRingMesh.rotation.z += 0.01 * interactionSpeed;
+      leftGlobeMesh.rotation.y -= 0.015 * interactionSpeed;
+      leftInnerMesh.rotation.y += 0.020 * interactionSpeed;
+      leftRingMesh.rotation.z += 0.022 * interactionSpeed;
 
       // D. Particle Stream Drifting
       const pArr = particleGeo.attributes.position.array;
@@ -307,12 +307,15 @@ export default function ThreeBackground({ theme = 'dark' }) {
 
     animate();
 
+    const container = containerRef.current;
+
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('resize', handleResize);
-      if (containerRef.current) {
-        containerRef.current.innerHTML = '';
+      renderer.dispose();
+      if (container) {
+        container.innerHTML = '';
       }
     };
   }, []);
