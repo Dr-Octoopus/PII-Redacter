@@ -247,8 +247,6 @@ export default function ThreeBackground({ theme = 'dark' }) {
 
     window.addEventListener('resize', handleResize);
 
-    let animationFrameId;
-    let time = 0;
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
