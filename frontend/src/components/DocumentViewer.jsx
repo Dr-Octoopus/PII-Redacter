@@ -1,8 +1,6 @@
 import React from 'react';
 
 export default function DocumentViewer({ renderType, imageSrc, textContent, pageNum, totalPages, title, zoomLevel = 100 }) {
-  const scaleRatio = zoomLevel / 100;
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div className="pane-header">
@@ -14,18 +12,40 @@ export default function DocumentViewer({ renderType, imageSrc, textContent, page
         )}
       </div>
 
-      <div className="pane-body" style={{ overflow: 'auto', maxHeight: '580px', position: 'relative', width: '100%' }}>
+      <div
+        className="pane-body"
+        style={{
+          height: '720px',
+          maxHeight: '72vh',
+          overflow: 'auto',
+          position: 'relative',
+          width: '100%',
+          padding: '1.25rem',
+          background: 'var(--pane-bg)',
+        }}
+      >
         {renderType === 'image' && imageSrc && (
-          <div style={{ display: 'flex', justifyContent: 'center', minWidth: '100%', padding: '1rem' }}>
+          <div
+            style={{
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'flex-start',
+              minHeight: '100%',
+            }}
+          >
             <img
               src={imageSrc}
               alt={`${title} page ${pageNum + 1}`}
               className="document-page-image"
               style={{
-                width: `${scaleRatio * 100}%`,
+                width: `${zoomLevel}%`,
                 maxWidth: 'none',
                 height: 'auto',
-                transition: 'width 0.2s ease',
+                boxShadow: 'var(--shadow-lg)',
+                borderRadius: '6px',
+                transition: 'width 0.15s ease-out',
+                display: 'block',
               }}
             />
           </div>
@@ -35,8 +55,8 @@ export default function DocumentViewer({ renderType, imageSrc, textContent, page
           <div
             className="document-text-container"
             style={{
-              fontSize: `${scaleRatio * 0.875}rem`,
-              lineHeight: 1.65,
+              fontSize: `${(zoomLevel / 100) * 0.925}rem`,
+              lineHeight: 1.7,
               width: '100%',
               minHeight: '100%',
             }}
@@ -57,4 +77,5 @@ export default function DocumentViewer({ renderType, imageSrc, textContent, page
     </div>
   );
 }
+
 
