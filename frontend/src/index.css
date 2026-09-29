@@ -517,15 +517,13 @@ body {
   padding: 1.25rem;
   min-height: 520px;
   max-height: 720px;
-  overflow-y: auto;
-  display: flex;
-  justify-content: center;
+  overflow: auto;
   background: var(--pane-bg);
   transition: background var(--transition-normal);
 }
 
 .document-page-image {
-  max-width: 100%;
+  max-width: none;
   height: auto;
   box-shadow: var(--shadow-lg);
   border-radius: 6px;

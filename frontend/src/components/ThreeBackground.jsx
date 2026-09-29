@@ -282,28 +282,28 @@ export default function ThreeBackground({ theme = 'dark' }) {
       const intersectsRight = raycaster.intersectObject(rightGlobeGroup, true);
       const intersectsLeft = raycaster.intersectObject(leftGlobeGroup, true);
 
-      // Target speed: 1 (base very slow) or 6 (medium fast on hover)
-      const rightSpeedTarget = intersectsRight.length > 0 ? 6.0 : 1.0;
-      const leftSpeedTarget = intersectsLeft.length > 0 ? 6.0 : 1.0;
+      // Target speed: 0.25 (ultra slow base rotation) or 1.0 (gentle speed on hover)
+      const rightSpeedTarget = intersectsRight.length > 0 ? 1.0 : 0.25;
+      const leftSpeedTarget = intersectsLeft.length > 0 ? 1.0 : 0.25;
 
       // Smoothly interpolate current speed towards target speed
       rightSpeed += (rightSpeedTarget - rightSpeed) * 0.05;
       leftSpeed += (leftSpeedTarget - leftSpeed) * 0.05;
       
-      rightGlobeGroup.rotation.y += 0.0015 * rightSpeed;
-      rightGlobeGroup.rotation.x += 0.0010 * rightSpeed;
+      rightGlobeGroup.rotation.y += 0.0004 * rightSpeed;
+      rightGlobeGroup.rotation.x += 0.0003 * rightSpeed;
 
-      leftGlobeGroup.rotation.y -= 0.0018 * leftSpeed;
-      leftGlobeGroup.rotation.z += 0.0012 * leftSpeed;
+      leftGlobeGroup.rotation.y -= 0.0004 * leftSpeed;
+      leftGlobeGroup.rotation.z += 0.0003 * leftSpeed;
 
       // C. Sub-mesh internal counter-rotations
-      globeMesh.rotation.y += 0.0012 * rightSpeed;
-      ringMesh.rotation.z += 0.0020 * rightSpeed;
-      ring2Mesh.rotation.z -= 0.0018 * rightSpeed;
+      globeMesh.rotation.y += 0.0003 * rightSpeed;
+      ringMesh.rotation.z += 0.0005 * rightSpeed;
+      ring2Mesh.rotation.z -= 0.0004 * rightSpeed;
 
-      leftGlobeMesh.rotation.y -= 0.0015 * leftSpeed;
-      leftInnerMesh.rotation.y += 0.0020 * leftSpeed;
-      leftRingMesh.rotation.z += 0.0022 * leftSpeed;
+      leftGlobeMesh.rotation.y -= 0.0003 * leftSpeed;
+      leftInnerMesh.rotation.y += 0.0005 * leftSpeed;
+      leftRingMesh.rotation.z += 0.0005 * leftSpeed;
 
       // D. Particle Stream Drifting
       const pArr = particleGeo.attributes.position.array;
