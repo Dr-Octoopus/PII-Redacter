@@ -220,9 +220,21 @@ export default function ThreeBackground({ theme = 'dark' }) {
     let mouseX = 0;
     let mouseY = 0;
 
+    let animationFrameId;
+    let time = 0;
+
+    // Raycaster for hover detection
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let rightSpeed = 1.0;
+    let leftSpeed = 1.0;
+
     const handleMouseMove = (e) => {
       mouseX = (e.clientX - window.innerWidth / 2) * 0.2;
       mouseY = (e.clientY - window.innerHeight / 2) * 0.2;
+
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -266,23 +278,34 @@ export default function ThreeBackground({ theme = 'dark' }) {
       leftGlobeGroup.position.z = -20 + Math.cos(time * 0.5) * 25;
 
       // B. ENTIRE 3D GROUP ROTATION (Spinning whole globe assemblies!)
-      // Add interaction speed based on mouse movement distance from center
-      const interactionSpeed = 1 + (Math.abs(mouseX) + Math.abs(mouseY)) * 0.02;
       
-      rightGlobeGroup.rotation.y += 0.015 * interactionSpeed;
-      rightGlobeGroup.rotation.x += 0.010 * interactionSpeed;
+      // Raycasting to see if mouse is hovering over either globe
+      raycaster.setFromCamera(mouse, camera);
+      const intersectsRight = raycaster.intersectObject(rightGlobeGroup, true);
+      const intersectsLeft = raycaster.intersectObject(leftGlobeGroup, true);
 
-      leftGlobeGroup.rotation.y -= 0.018 * interactionSpeed;
-      leftGlobeGroup.rotation.z += 0.012 * interactionSpeed;
+      // Target speed: 1 (base very slow) or 6 (medium fast on hover)
+      const rightSpeedTarget = intersectsRight.length > 0 ? 6.0 : 1.0;
+      const leftSpeedTarget = intersectsLeft.length > 0 ? 6.0 : 1.0;
+
+      // Smoothly interpolate current speed towards target speed
+      rightSpeed += (rightSpeedTarget - rightSpeed) * 0.05;
+      leftSpeed += (leftSpeedTarget - leftSpeed) * 0.05;
+      
+      rightGlobeGroup.rotation.y += 0.0015 * rightSpeed;
+      rightGlobeGroup.rotation.x += 0.0010 * rightSpeed;
+
+      leftGlobeGroup.rotation.y -= 0.0018 * leftSpeed;
+      leftGlobeGroup.rotation.z += 0.0012 * leftSpeed;
 
       // C. Sub-mesh internal counter-rotations
-      globeMesh.rotation.y += 0.012 * interactionSpeed;
-      ringMesh.rotation.z += 0.020 * interactionSpeed;
-      ring2Mesh.rotation.z -= 0.018 * interactionSpeed;
+      globeMesh.rotation.y += 0.0012 * rightSpeed;
+      ringMesh.rotation.z += 0.0020 * rightSpeed;
+      ring2Mesh.rotation.z -= 0.0018 * rightSpeed;
 
-      leftGlobeMesh.rotation.y -= 0.015 * interactionSpeed;
-      leftInnerMesh.rotation.y += 0.020 * interactionSpeed;
-      leftRingMesh.rotation.z += 0.022 * interactionSpeed;
+      leftGlobeMesh.rotation.y -= 0.0015 * leftSpeed;
+      leftInnerMesh.rotation.y += 0.0020 * leftSpeed;
+      leftRingMesh.rotation.z += 0.0022 * leftSpeed;
 
       // D. Particle Stream Drifting
       const pArr = particleGeo.attributes.position.array;
