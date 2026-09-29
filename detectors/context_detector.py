@@ -27,7 +27,9 @@ FALSE_ORG_TERMS = {
     "signal", "signals", "process", "processes", "excel", "workbook", "workbooks",
     "configuration", "configurations", "application", "applications", "manual",
     "repository", "api", "page", "revision", "status", "description",
-    "admin", "administration", "hr", "director", "signatory", "signature"
+    "admin", "administration", "hr", "director", "signatory", "signature",
+    "schedule", "table", "figure", "section", "appendix", "chapter", "abstract",
+    "pan", "dob", "name", "father", "department", "govt", "india", "tax"
 }
 
 NON_PERSON_WORDS = FALSE_ORG_TERMS | {
