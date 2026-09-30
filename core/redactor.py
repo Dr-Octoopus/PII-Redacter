@@ -203,8 +203,8 @@ def redact_pdf(
 def _search_text_on_page(page, text: str) -> list:
     """
     Safely search for text on a page enforcing whole-word boundaries
-    so short words/entities (e.g. "ca", "in", "or") do NOT redact substrings
-    inside larger words (e.g. "physically", "carrying", "learning").
+    so short words/entities do NOT redact substrings inside larger words.
+    Supports multi-line wrapped table cell text fallbacks.
     """
     text = text.strip()
     if not text:
@@ -224,20 +224,25 @@ def _search_text_on_page(page, text: str) -> list:
                 matched_rects.append(fitz.Rect(w[0], w[1], w[2], w[3]))
         if matched_rects:
             return matched_rects
+        return page.search_for(text)
 
-    # 2. Multi-word phrase or fallback: search using page.search_for and filter boundary overlaps
+    # 2. Multi-word phrase: search using page.search_for
     raw_rects = page.search_for(text)
     if not raw_rects and len(words) > 1:
         normalized = " ".join(words)
         if normalized != text:
             raw_rects = page.search_for(normalized)
 
-    if not raw_rects:
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-        if len(lines) > 1:
-            for line in lines:
-                if len(line) >= 3 and line.lower() not in STOPWORDS:
-                    raw_rects.extend(page.search_for(line))
+    # 3. Fallback for wrapped multi-line text (e.g. table cells with name split across lines)
+    if not raw_rects and len(words) > 1:
+        word_rects = []
+        for word in words:
+            clean_word = word.strip(".,;:()[]{}'\"-—")
+            if len(clean_word) >= 2 and clean_word.lower() not in {"dr", "mr", "ms", "mrs", "prof"}:
+                w_rects = _search_text_on_page(page, clean_word)
+                word_rects.extend(w_rects)
+        if word_rects:
+            return word_rects
 
     if not raw_rects:
         return []
@@ -260,7 +265,7 @@ def _search_text_on_page(page, text: str) -> list:
                     if overlap_ratio < 0.80:
                         is_subword = True
                         break
-        if not is_subword and r.height <= 2.8 * r.width and r.width <= 15 * r.height:
+        if not is_subword and r.height <= 2.8 * r.width and r.width <= 100 * r.height:
             valid_rects.append(r)
 
     return valid_rects
