@@ -24,7 +24,9 @@ REJECT_TITLE_WORDS = {
     "distribution list", "contact email", "registered addresses", "ifsc code", "gstin",
     "revision history and document control", "document control", "audit committee",
     "department of compliance", "department of finance", "department of information security",
-    "department of audit", "department of human resources", "department of legal"
+    "department of audit", "department of human resources", "department of legal",
+    "legal entity details", "financial audit trail", "technical logs", "compliance audit",
+    "digital personal data", "protection act", "legal entity", "audit trail"
 }
 
 FALSE_ORG_TERMS = {
@@ -36,7 +38,10 @@ FALSE_ORG_TERMS = {
     "pan", "dob", "name", "father", "department", "govt", "india", "tax",
     "and", "any", "the", "its", "all", "other", "such", "each", "this", "that", "which",
     "role", "registered", "city", "address", "addresses", "version", "date",
-    "author", "prepared", "reviewed", "approved", "gstin", "ifsc", "code"
+    "author", "prepared", "reviewed", "approved", "gstin", "ifsc", "code",
+    "legal", "entity", "details", "financial", "audit", "trail", "technical", "logs",
+    "digital", "personal", "data", "protection", "act", "compliance", "summary",
+    "scope", "overview", "vendor", "report"
 }
 
 NON_PERSON_WORDS = FALSE_ORG_TERMS | {
@@ -53,7 +58,9 @@ NON_PERSON_WORDS = FALSE_ORG_TERMS | {
     "the", "status", "description", "date", "page", "manual", "owner",
     "manager", "lead", "director", "admin", "administration", "hr", "signatory",
     "signature", "authorized", "officer", "executive", "president", "contact",
-    "distribution", "list", "email"
+    "distribution", "list", "email", "legal", "entity", "details", "financial",
+    "audit", "trail", "technical", "logs", "digital", "personal", "data",
+    "protection", "act", "compliance", "summary", "scope", "overview", "vendor", "report"
 }
 
 
@@ -161,14 +168,20 @@ def detect_context_pii(text: str) -> list[dict]:
                 break
 
     # 1b. Revision-history tables often contain names under Author/Prepared/Reviewed/Approved columns
+    STRICT_NAME_PATTERN = re.compile(
+        r"\b(?:(?:Dr|Mr|Ms|Mrs|Prof)\.?\s+)?[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}\b"
+    )
     for revision_match in re.finditer(r"(?i)\brevision\s+history\b", text):
         block_start = revision_match.end()
         block_end = min(len(text), block_start + 1800)
         block = text[block_start:block_end]
         if not any(k in block.lower() for k in ["author", "prepared", "reviewed", "approved", "developed", "released"]):
             continue
-        for m in PERSON_NAME_PATTERN.finditer(block):
-            add_person(m.group(0), block_start + m.start(0), confidence=0.91)
+        for line_m in re.finditer(r"[^\n]+", block):
+            line_str = line_m.group()
+            line_offset = block_start + line_m.start()
+            for m in STRICT_NAME_PATTERN.finditer(line_str):
+                add_person(m.group(0), line_offset + m.start(0), confidence=0.91)
 
     # 2. Copyright / Ownership Org detections
     for m in COPYRIGHT_ORG_PATTERN.finditer(text):
@@ -191,7 +204,8 @@ def detect_context_pii(text: str) -> list[dict]:
 
     # 3. Known Company Suffix / Pattern Orgs
     for m in ORG_SUFFIX_PATTERN.finditer(text):
-        org_text = m.group(1).strip()
+        raw_match = m.group(1)
+        org_text = raw_match.strip()
         if "\n" in org_text:
             org_text = org_text.split("\n")[-1].strip()
         words = [w.strip(".,;:()[]{}'\"").lower() for w in org_text.split()]
@@ -201,11 +215,13 @@ def detect_context_pii(text: str) -> list[dict]:
             and not all(w in FALSE_ORG_TERMS for w in words)
         ):
             if not any(stop in org_text.lower() for stop in ["unauthorized", "prohibited", "trademarks"]):
+                rel_idx = raw_match.rfind(org_text)
+                start_off = m.start(1) + (rel_idx if rel_idx != -1 else 0)
                 add_detection({
                     "text": org_text,
                     "category": "ORGANIZATION",
-                    "start": m.start(1),
-                    "end": m.end(1),
+                    "start": start_off,
+                    "end": start_off + len(org_text),
                     "detection_method": "context_rule",
                     "confidence": 0.88,
                 })
