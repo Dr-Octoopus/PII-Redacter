@@ -189,6 +189,7 @@ def _expand_consistent_entities(text: str, entities: list[dict]) -> list[dict]:
         if e["category"] in semantic_categories
         and e.get("confidence", 0) >= 0.85
         and len(e.get("text", "").strip()) >= 4
+        and (len(e.get("text", "").split()) >= 2 or e["category"] == "LOCATION")
         and not _should_skip_entity(e.get("text", ""), e["category"])
     ]
 
