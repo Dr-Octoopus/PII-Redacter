@@ -215,13 +215,19 @@ def _search_text_on_page(page, text: str) -> list:
 
     # 1. Single-word entity: match against page_words using exact word token comparison
     if len(words) == 1:
-        target_lower = text.lower()
+        target_lower = text.strip(".,;:()[]{}'\"-—").lower()
         matched_rects = []
         for w in page_words:
             w_text = w[4]
             clean_w = w_text.strip(".,;:()[]{}'\"-—").lower()
             if clean_w == target_lower:
                 matched_rects.append(fitz.Rect(w[0], w[1], w[2], w[3]))
+            else:
+                # Also check subtokens if punctuation connects words without space (e.g., 'VIIT,Pune' or 'VIIT/')
+                import re
+                subtokens = [st.lower() for st in re.split(r'[^a-zA-Z0-9]', w_text) if st]
+                if target_lower in subtokens:
+                    matched_rects.append(fitz.Rect(w[0], w[1], w[2], w[3]))
         if matched_rects:
             return matched_rects
         return page.search_for(text)
@@ -249,7 +255,9 @@ def _search_text_on_page(page, text: str) -> list:
 
     # Filter raw_rects to ensure they don't break mid-word
     valid_rects = []
-    target_clean_len = len(text.strip(".,;:()[]{}'\"-—"))
+    import re
+    target_clean = text.strip(".,;:()[]{}'\"-—").lower()
+    target_clean_len = len(target_clean)
     for r in raw_rects:
         is_subword = False
         for w in page_words:
@@ -258,6 +266,9 @@ def _search_text_on_page(page, text: str) -> list:
             intersect = r & word_rect
             intersect_area = intersect.width * intersect.height
             if not intersect.is_empty and intersect_area > 0:
+                subtokens = [st.lower() for st in re.split(r'[^a-zA-Z0-9]', w[4]) if st]
+                if target_clean in subtokens:
+                    continue  # Target is an exact subtoken (e.g. 'VIIT' in 'VIIT,Pune')
                 clean_w = w[4].strip(".,;:()[]{}'\"-—")
                 # If target text is shorter than clean_w and rect only covers a slice of clean_w
                 if target_clean_len < len(clean_w):
