@@ -27,7 +27,8 @@ REJECT_TITLE_WORDS = {
     "department of audit", "department of human resources", "department of legal",
     "legal entity details", "financial audit trail", "technical logs", "compliance audit",
     "digital personal data", "protection act", "legal entity", "audit trail",
-    "chief information", "information security", "chief information officer"
+    "chief information", "information security", "chief information officer",
+    "autonomous", "affiliated", "charitable", "nomination", "certificate"
 }
 
 FALSE_ORG_TERMS = {
@@ -63,7 +64,10 @@ NON_PERSON_WORDS = FALSE_ORG_TERMS | {
     "distribution", "list", "email", "legal", "entity", "details", "financial",
     "audit", "trail", "technical", "logs", "digital", "personal", "data",
     "protection", "act", "compliance", "summary", "scope", "overview", "vendor", "report",
-    "chief", "information", "security", "officer", "division", "technology"
+    "chief", "information", "security", "officer", "division", "technology",
+    "institute", "university", "college", "academy", "polytechnic", "ministry", "department",
+    "foundation", "trust", "cell", "hackathon", "council", "board", "association", "society",
+    "autonomous", "affiliated", "charitable", "nomination", "certificate"
 }
 
 
@@ -77,15 +81,25 @@ ROLE_NAME_PATTERN = re.compile(
     r"(?i)\b(?:developed\s+by|reviewed\s+by|released\s+by|prepared\s+by|approved\s+by|"
     r"submitted\s+by|author|lead|manager|owner)\s*[:\-]?\s*"
     r"(?:Tool\s+Owner|Tools\s+Factory\s+Lead|Tools\s+Factory\s+Manager|Lead|Manager|Owner)?\s*"
-    r"((?:(?:Dr|Mr|Ms|Mrs|Prof)\.?\s+)?[A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b"
+    r"((?:(?:Dr|Mr|Ms|Mrs|Prof)\.?\s+)?[A-Z][a-z]+\s+(?:[A-Z]\.?\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b"
 )
 
 PERSON_NAME_PATTERN = re.compile(
-    r"\b(?:(?:Dr|Mr|Ms|Mrs|Prof)\.?\s+)?([A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?)\b"
+    r"\b((?:(?:Dr|Mr|Ms|Mrs|Prof)\.?\s+)?[A-Z][a-z]{2,}(?:\s+[A-Z]\.?)?\s+[A-Z][a-z]{2,})\b"
 )
 ROLE_LINE_PATTERN = re.compile(
     r"(?i)\b(?:developed\s+by|reviewed\s+by|released\s+by|prepared\s+by|approved\s+by|"
     r"submitted\s+by|author|lead|manager|owner)\b\s*[:\-]?\s*(.*)$"
+)
+
+# Government Ministries, Educational Boards, Apex Bodies & Academic Institutions
+GOVT_ACADEMIC_ORG_PATTERN = re.compile(
+    r"(?i)\b("
+    r"Ministry[^\S\r\n]+of[^\S\r\n]+[A-Za-z]+(?:[^\S\r\n]+[A-Za-z]+){0,3}"
+    r"|Department[^\S\r\n]+of[^\S\r\n]+[A-Za-z]+(?:[^\S\r\n]+[A-Za-z]+){0,3}"
+    r"|[A-Za-z0-9&\-\.']+(?:[^\S\r\n]+[A-Za-z0-9&\-\.']+){0,5}[^\S\r\n]+(?:Institute[^\S\r\n]+of[^\S\r\n]+Information[^\S\r\n]+Technology|Institute[^\S\r\n]+of[^\S\r\n]+Technology|College[^\S\r\n]+of[^\S\r\n]+Engineering|Innovation[^\S\r\n]+Cell|University|Trust|Academy|Polytechnic)"
+    r"|\b(?:AICTE|A\.I\.C\.T\.E\.|UGC|NCERT|CBSE|ICSE|NTA|ISRO|DRDO|VIIT|IIT|NIT|BITS|BVP|COEP)\b"
+    r")\b"
 )
 
 # Copyright and ownership organization patterns (single-line only)
@@ -121,8 +135,8 @@ def detect_context_pii(text: str) -> list[dict]:
     def is_valid_person_name(name_text: str) -> bool:
         normalized = " ".join(name_text.split())
         lower = normalized.lower()
-        # Remove honorific for word count check
         clean_text = re.sub(r"^(?:Dr|Mr|Ms|Mrs|Prof)\.?\s+", "", normalized, flags=re.IGNORECASE)
+        clean_text = re.sub(r"\s+[A-Z]\.?\s+", " ", clean_text)
         words = clean_text.split()
         if lower in REJECT_TITLE_WORDS or len(words) not in (2, 3):
             return False
@@ -190,6 +204,10 @@ def detect_context_pii(text: str) -> list[dict]:
                 if is_valid_person_name(cand_3):
                     add_person(cand_3, block_start + words[i].start(), confidence=0.92)
 
+    # 1c. General Person Name pattern scan across document
+    for m in PERSON_NAME_PATTERN.finditer(text):
+        add_person(m.group(0), m.start(0), confidence=0.90)
+
     # 2. Copyright / Ownership Org detections
     for m in COPYRIGHT_ORG_PATTERN.finditer(text):
         org_text = m.group(1).strip(" .,;:\n\r")
@@ -232,5 +250,28 @@ def detect_context_pii(text: str) -> list[dict]:
                     "detection_method": "context_rule",
                     "confidence": 0.88,
                 })
+
+    # 4. Government Ministries, Educational Boards, Apex Bodies & Academic Institutions
+    for m in GOVT_ACADEMIC_ORG_PATTERN.finditer(text):
+        raw_match = m.group(1)
+        org_text = raw_match.strip(" .,;:\n\r")
+        org_text = re.sub(r"^(?:organized by|affiliated to|an|the|sponsored by|held at|held on)\s+", "", org_text, flags=re.IGNORECASE)
+        cleaned_org = re.sub(r"^(?:Dr\.|Mr\.|Ms\.|Mrs\.|Prof\.)?\s*(?:[A-Z][a-z]+\s+)+(?=[A-Z][a-z]+\s+(?:Institute|College|University|Trust|Academy|Polytechnic))", "", org_text)
+        if cleaned_org:
+            org_text = cleaned_org
+        lower_org = org_text.lower()
+        if lower_org in {"government of india", "govt of india", "government of maharashtra"}:
+            continue
+        if lower_org not in REJECT_TITLE_WORDS and len(org_text) >= 3:
+            rel_idx = raw_match.rfind(org_text)
+            start_off = m.start(1) + (rel_idx if rel_idx != -1 else 0)
+            add_detection({
+                "text": org_text,
+                "category": "ORGANIZATION",
+                "start": start_off,
+                "end": start_off + len(org_text),
+                "detection_method": "context_rule",
+                "confidence": 0.92,
+            })
 
     return detections
