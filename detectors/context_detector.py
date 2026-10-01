@@ -67,7 +67,8 @@ NON_PERSON_WORDS = FALSE_ORG_TERMS | {
     "chief", "information", "security", "officer", "division", "technology",
     "institute", "university", "college", "academy", "polytechnic", "ministry", "department",
     "foundation", "trust", "cell", "hackathon", "council", "board", "association", "society",
-    "autonomous", "affiliated", "charitable", "nomination", "certificate"
+    "autonomous", "affiliated", "charitable", "nomination", "certificate", "education", "government",
+    "innovation", "smart"
 }
 
 
@@ -256,6 +257,7 @@ def detect_context_pii(text: str) -> list[dict]:
         raw_match = m.group(1)
         org_text = raw_match.strip(" .,;:\n\r")
         org_text = re.sub(r"^(?:organized by|affiliated to|an|the|sponsored by|held at|held on)\s+", "", org_text, flags=re.IGNORECASE)
+        org_text = re.sub(r"(?i)\s+(?:G\s+)?(?:Government|Govt|Hackathon|Smart).*$", "", org_text)
         cleaned_org = re.sub(r"^(?:Dr\.|Mr\.|Ms\.|Mrs\.|Prof\.)?\s*(?:[A-Z][a-z]+\s+)+(?=[A-Z][a-z]+\s+(?:Institute|College|University|Trust|Academy|Polytechnic))", "", org_text)
         if cleaned_org:
             org_text = cleaned_org
