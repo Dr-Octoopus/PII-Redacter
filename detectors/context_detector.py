@@ -26,7 +26,8 @@ REJECT_TITLE_WORDS = {
     "department of compliance", "department of finance", "department of information security",
     "department of audit", "department of human resources", "department of legal",
     "legal entity details", "financial audit trail", "technical logs", "compliance audit",
-    "digital personal data", "protection act", "legal entity", "audit trail"
+    "digital personal data", "protection act", "legal entity", "audit trail",
+    "chief information", "information security", "chief information officer"
 }
 
 FALSE_ORG_TERMS = {
@@ -41,7 +42,8 @@ FALSE_ORG_TERMS = {
     "author", "prepared", "reviewed", "approved", "gstin", "ifsc", "code",
     "legal", "entity", "details", "financial", "audit", "trail", "technical", "logs",
     "digital", "personal", "data", "protection", "act", "compliance", "summary",
-    "scope", "overview", "vendor", "report"
+    "scope", "overview", "vendor", "report", "chief", "information", "security",
+    "officer", "division", "technology"
 }
 
 NON_PERSON_WORDS = FALSE_ORG_TERMS | {
@@ -60,7 +62,8 @@ NON_PERSON_WORDS = FALSE_ORG_TERMS | {
     "signature", "authorized", "officer", "executive", "president", "contact",
     "distribution", "list", "email", "legal", "entity", "details", "financial",
     "audit", "trail", "technical", "logs", "digital", "personal", "data",
-    "protection", "act", "compliance", "summary", "scope", "overview", "vendor", "report"
+    "protection", "act", "compliance", "summary", "scope", "overview", "vendor", "report",
+    "chief", "information", "security", "officer", "division", "technology"
 }
 
 
@@ -167,21 +170,25 @@ def detect_context_pii(text: str) -> list[dict]:
                 add_person(candidate_match.group(1), lookahead.start() + candidate_match.start(1), confidence=0.92)
                 break
 
-    # 1b. Revision-history tables often contain names under Author/Prepared/Reviewed/Approved columns
-    STRICT_NAME_PATTERN = re.compile(
-        r"\b(?:(?:Dr|Mr|Ms|Mrs|Prof)\.?\s+)?[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}\b"
-    )
+    # 1b. Revision-history & structured tables: sliding window token matcher
     for revision_match in re.finditer(r"(?i)\brevision\s+history\b", text):
         block_start = revision_match.end()
-        block_end = min(len(text), block_start + 1800)
+        block_end = min(len(text), block_start + 2500)
         block = text[block_start:block_end]
         if not any(k in block.lower() for k in ["author", "prepared", "reviewed", "approved", "developed", "released"]):
             continue
-        for line_m in re.finditer(r"[^\n]+", block):
-            line_str = line_m.group()
-            line_offset = block_start + line_m.start()
-            for m in STRICT_NAME_PATTERN.finditer(line_str):
-                add_person(m.group(0), line_offset + m.start(0), confidence=0.91)
+        
+        words = list(re.finditer(r"\b[A-Za-z\.]+\b", block))
+        for i in range(len(words) - 1):
+            w1, w2 = words[i].group(), words[i+1].group()
+            cand_2 = f"{w1} {w2}"
+            if is_valid_person_name(cand_2):
+                add_person(cand_2, block_start + words[i].start(), confidence=0.92)
+            if i < len(words) - 2:
+                w3 = words[i+2].group()
+                cand_3 = f"{w1} {w2} {w3}"
+                if is_valid_person_name(cand_3):
+                    add_person(cand_3, block_start + words[i].start(), confidence=0.92)
 
     # 2. Copyright / Ownership Org detections
     for m in COPYRIGHT_ORG_PATTERN.finditer(text):
