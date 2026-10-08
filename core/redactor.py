@@ -40,10 +40,17 @@ from typing import Optional
 import pymupdf as fitz  # PyMuPDF (modern import path)
 from docx import Document
 from openpyxl import load_workbook
+from openpyxl.styles import PatternFill, Font as XlFont
 
 from parsers.ocr_parser import redact_docx_images, redact_pdf_ocr_regions
 
 MASK_TEXT = "[REDACTED]"
+
+# Openpyxl style objects for black-box redaction in Excel cells.
+# Black background + white foreground so "[REDACTED]" is clearly visible
+# against the dark fill, mimicking the look of a proper redaction marker.
+_BLACK_FILL = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
+_REDACT_FONT = XlFont(color="FFFFFF", bold=True)
 
 
 # ---------------------------------------------------------------------------
@@ -297,30 +304,68 @@ def redact_xlsx(
     output_path: str,
 ) -> None:
     """
-    Redact an .xlsx file by overwriting only the specific cells that
-    contained PII, leaving every other cell, formula, and formatting
-    untouched.
+    Redact an .xlsx file at the *substring* level — only the exact PII text
+    within each cell is replaced, leaving the surrounding content intact.
 
-    Detections carry character offsets into the combined full_text.
-    We use `cell_map` (produced by xlsx_parser.parse_xlsx) to translate
-    those offsets back into (sheet_name, coordinate) pairs — the same
-    pattern redact_docx uses with structure_map.
+    Improvement over the previous whole-cell wipe:
+      Before: cell "Contact John Doe at 9876543210" → "[REDACTED]"
+      After:  cell "Contact John Doe at 9876543210" → "Contact [REDACTED] at [REDACTED]"
+
+    Visual styling (blackout):
+      Any cell that contains at least one PII entity receives a solid black
+      background fill and white bold font.  This makes the cell look like a
+      proper redaction bar (black box) while preserving the surrounding text
+      that was NOT PII.
+
+    How offsets work:
+      entities carry global character offsets into the full_text string built
+      by xlsx_parser.  cell_map records the [start, end) slice of full_text
+      that corresponds to each cell.  We translate global → local offsets
+      (local = global − cell.start) to perform the in-cell substitution.
     """
     shutil.copy(filepath, output_path)
     workbook = load_workbook(output_path)
 
-    cells_to_redact: set[tuple[str, str]] = set()
     for cell_info in cell_map:
-        has_entity = any(
-            cell_info["start"] <= e["start"] < cell_info["end"]
-            for e in entities
-        )
-        if has_entity:
-            cells_to_redact.add(
-                (cell_info["sheet_name"], cell_info["coordinate"])
-            )
+        # Collect all entities whose global offset falls inside this cell.
+        cell_entities = [
+            e for e in entities
+            if cell_info["start"] <= e["start"] < cell_info["end"]
+        ]
+        if not cell_entities:
+            continue  # nothing to redact in this cell
 
-    for sheet_name, coordinate in cells_to_redact:
-        workbook[sheet_name][coordinate] = MASK_TEXT
+        sheet = workbook[cell_info["sheet_name"]]
+        cell = sheet[cell_info["coordinate"]]
+        original_text: str = cell_info["text"]  # the text we parsed at scan time
+
+        # ------------------------------------------------------------------ #
+        # Surgical text replacement                                            #
+        # Replace entities from right to left so earlier offsets stay valid   #
+        # after each substitution (same technique used in redact_txt).        #
+        # ------------------------------------------------------------------ #
+        new_text = original_text
+        for entity in sorted(cell_entities, key=lambda e: e["start"], reverse=True):
+            local_start = entity["start"] - cell_info["start"]
+            local_end   = entity["end"]   - cell_info["start"]
+            # Guard against offset drift (shouldn't happen, but be defensive).
+            local_start = max(0, min(local_start, len(new_text)))
+            local_end   = max(local_start, min(local_end, len(new_text)))
+            new_text = new_text[:local_start] + MASK_TEXT + new_text[local_end:]
+
+        # Write the surgically-redacted text back into the cell.
+        cell.value = new_text
+
+        # ------------------------------------------------------------------ #
+        # Visual blackout styling                                              #
+        # Apply solid black fill + white bold text so the cell looks like a   #
+        # physical redaction marker rather than a plain text label.            #
+        # Note: openpyxl cannot apply per-character background colour, so the  #
+        # black fill covers the entire cell.  The white text makes it clear    #
+        # which cells have been redacted even when the rest of the sentence is  #
+        # visible in the cell value.                                            #
+        # ------------------------------------------------------------------ #
+        cell.fill = _BLACK_FILL
+        cell.font = _REDACT_FONT
 
     workbook.save(output_path)
