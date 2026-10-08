@@ -25,6 +25,20 @@ OCR_ZOOM = 2.0
 OCR_LANG = "eng"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
+OCR_ORG_BRANDS = {
+    # Tech companies
+    "adobe", "amd", "amazon", "apple", "cisco", "cognizant", "dell",
+    "emerson", "engati", "facebook", "google", "honeywell", "hp", "ibm",
+    "infosys", "instagram", "intel", "linkedin", "meta", "microsoft",
+    "nvidia", "oracle", "salesforce", "samsung", "siemens", "sony", "tata",
+    "tesla", "whatsapp", "wipro", "youtube",
+    # Financial institutions (often appear as logos on documents)
+    "jpmorganchase", "jpmorgan", "goldman", "citibank", "citigroup",
+    "barclays", "hsbc", "ubs", "deutsche", "wellsfargo", "blackrock",
+    "mastercard", "visa", "paypal", "stripe", "hdfc", "icici", "axis",
+    "kotak", "reliance", "bajaj",
+}
+
 
 @dataclass(frozen=True)
 class OcrStatus:
@@ -273,6 +287,64 @@ def parse_image_ocr(filepath: str) -> tuple[str, list[dict[str, Any]]]:
     }]
 
 
+def detect_ocr_brand_entities(
+    structure_map: list[dict] | None,
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+) -> list[dict]:
+    """
+    Detect clean brand/logo words from OCR regions.
+
+    This is deliberately narrow: it only uses words already produced by OCR
+    regions, and only for known organization brand tokens. It catches logos
+    that spaCy sometimes misses, without broadening normal text detection.
+    """
+    if not structure_map:
+        return []
+
+    if include:
+        active = {c.upper() for c in include}
+        if "ORGANIZATION" not in active:
+            return []
+    elif exclude and "ORGANIZATION" in {c.upper() for c in exclude}:
+        return []
+
+    detections: list[dict] = []
+    seen: set[tuple[int, int, str]] = set()
+
+    def add_word(global_start: int, raw_word: str, confidence: float) -> None:
+        word = raw_word.strip(".,;:()[]{}'\"-—")
+        if len(word) < 3 or word.lower() not in OCR_ORG_BRANDS:
+            return
+        start = global_start
+        end = start + len(word)
+        key = (start, end, word.lower())
+        if key in seen:
+            return
+        seen.add(key)
+        detections.append({
+            "text": word,
+            "category": "ORGANIZATION",
+            "start": start,
+            "end": end,
+            "detection_method": "ocr_brand_rule",
+            "confidence": round(max(0.86, min(0.95, confidence)), 4),
+        })
+
+    for entry in structure_map:
+        if "ocr_regions" in entry:
+            for region in entry.get("ocr_regions", []):
+                region_start = region["start"]
+                for word in region.get("words", []):
+                    add_word(region_start + word["start"], word["text"], word.get("confidence", 0.86))
+        elif entry.get("kind") in {"docx_ocr_image", "image_ocr"}:
+            entry_start = entry["start"]
+            for word in entry.get("words", []):
+                add_word(entry_start + word["start"], word["text"], word.get("confidence", 0.86))
+
+    return detections
+
+
 def redact_docx_images(document, structure_map: list[dict], entities: list[dict]) -> None:
     """Replace DOCX image blobs with redacted image blobs when OCR hits exist."""
     image_entries = [entry for entry in structure_map if entry.get("kind") == "docx_ocr_image"]
@@ -368,4 +440,3 @@ def redact_image(filepath: str, entities: list[dict], structure_map: list[dict],
                         draw.rectangle(word["bbox"], fill="black")
 
     image.save(output_path)
-

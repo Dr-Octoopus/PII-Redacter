@@ -44,7 +44,10 @@ FALSE_ORG_TERMS = {
     "legal", "entity", "details", "financial", "audit", "trail", "technical", "logs",
     "digital", "personal", "data", "protection", "act", "compliance", "summary",
     "scope", "overview", "vendor", "report", "chief", "information", "security",
-    "officer", "division", "technology"
+    "officer", "division", "technology", "computer", "science", "engineering",
+    "engineer", "deployment", "platform", "core", "messaging", "omnichannel",
+    "enterprise", "business", "businesses", "about", "middle", "east", "intern",
+    "internship", "gtm", "fde", "or", "near", "college"
 }
 
 NON_PERSON_WORDS = FALSE_ORG_TERMS | {
@@ -185,29 +188,21 @@ def detect_context_pii(text: str) -> list[dict]:
                 add_person(candidate_match.group(1), lookahead.start() + candidate_match.start(1), confidence=0.92)
                 break
 
-    # 1b. Revision-history & structured tables: sliding window token matcher
+    # 1b. Revision-history & structured tables. Keep this line-bounded so
+    # adjacent table cells do not combine into fake names like "July Atharva".
     for revision_match in re.finditer(r"(?i)\brevision\s+history\b", text):
         block_start = revision_match.end()
         block_end = min(len(text), block_start + 2500)
+        next_header = re.search(r"\n\s*Tools\s+Factory\s+Repository\b", text[block_start:block_end])
+        if next_header:
+            block_end = block_start + next_header.start()
         block = text[block_start:block_end]
         if not any(k in block.lower() for k in ["author", "prepared", "reviewed", "approved", "developed", "released"]):
             continue
-        
-        words = list(re.finditer(r"\b[A-Za-z\.]+\b", block))
-        for i in range(len(words) - 1):
-            w1, w2 = words[i].group(), words[i+1].group()
-            cand_2 = f"{w1} {w2}"
-            if is_valid_person_name(cand_2):
-                add_person(cand_2, block_start + words[i].start(), confidence=0.92)
-            if i < len(words) - 2:
-                w3 = words[i+2].group()
-                cand_3 = f"{w1} {w2} {w3}"
-                if is_valid_person_name(cand_3):
-                    add_person(cand_3, block_start + words[i].start(), confidence=0.92)
-
-    # 1c. General Person Name pattern scan across document
-    for m in PERSON_NAME_PATTERN.finditer(text):
-        add_person(m.group(0), m.start(0), confidence=0.90)
+        for line_match in re.finditer(r"[^\n]+", block):
+            line = line_match.group()
+            for m in PERSON_NAME_PATTERN.finditer(line):
+                add_person(m.group(0), block_start + line_match.start() + m.start(0), confidence=0.90)
 
     # 2. Copyright / Ownership Org detections
     for m in COPYRIGHT_ORG_PATTERN.finditer(text):
@@ -234,6 +229,8 @@ def detect_context_pii(text: str) -> list[dict]:
         org_text = raw_match.strip()
         if "\n" in org_text:
             org_text = org_text.split("\n")[-1].strip()
+        if org_text.lower() in {"process systems"}:
+            continue
         words = [w.strip(".,;:()[]{}'\"").lower() for w in org_text.split()]
         if (
             org_text.lower() not in REJECT_TITLE_WORDS
@@ -257,12 +254,15 @@ def detect_context_pii(text: str) -> list[dict]:
         raw_match = m.group(1)
         org_text = raw_match.strip(" .,;:\n\r")
         org_text = re.sub(r"^(?:organized by|affiliated to|an|the|sponsored by|held at|held on)\s+", "", org_text, flags=re.IGNORECASE)
+        org_text = re.sub(r"^(?:near|beside|opposite)\s+", "", org_text, flags=re.IGNORECASE)
         org_text = re.sub(r"(?i)\s+(?:G\s+)?(?:Government|Govt|Hackathon|Smart).*$", "", org_text)
         cleaned_org = re.sub(r"^(?:Dr\.|Mr\.|Ms\.|Mrs\.|Prof\.)?\s*(?:[A-Z][a-z]+\s+)+(?=[A-Z][a-z]+\s+(?:Institute|College|University|Trust|Academy|Polytechnic))", "", org_text)
         if cleaned_org:
             org_text = cleaned_org
         lower_org = org_text.lower()
         if lower_org in {"government of india", "govt of india", "government of maharashtra"}:
+            continue
+        if lower_org in {"college of engineering", "engineering college"}:
             continue
         if lower_org not in REJECT_TITLE_WORDS and len(org_text) >= 3:
             rel_idx = raw_match.rfind(org_text)

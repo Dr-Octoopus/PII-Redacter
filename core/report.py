@@ -16,6 +16,7 @@ LOW_CONFIDENCE_THRESHOLD = 0.75
 
 def build_json_report(entities: list[dict],
                        source_filename: str,
+                       review_candidates: list[dict] | None = None,
                        extra_warnings: list[str] | None = None) -> dict:
     """
     Assemble the final JSON report structure.
@@ -43,6 +44,16 @@ def build_json_report(entities: list[dict],
                 f"please verify manually."
             )
 
+    review_items = list(review_candidates) if review_candidates else []
+    for candidate in review_items:
+        warnings.append(
+            f"Review-only {candidate['category']} candidate "
+            f"('{candidate['text']}') at offset {candidate['start']} "
+            f"scored {candidate['confidence']:.0%} "
+            f"(raw detector score {candidate.get('raw_confidence', 0):.1%}) -- "
+            f"not redacted; please verify manually."
+        )
+
     if not entities:
         warnings.append(
             "No PII entities were detected. If this document is "
@@ -55,6 +66,7 @@ def build_json_report(entities: list[dict],
         "source_file": source_filename,
         "total_entities_found": len(entities),
         "entities": entities,
+        "review_candidates": review_items,
         "warnings": warnings,
     }
 
