@@ -211,12 +211,16 @@ def _render_xlsx_native_pages(filepath: str) -> list[bytes]:
     COL_HEADER_FG = (1.0,  1.0,  1.0 )
     STRIPE_A      = (1.0,  1.0,  1.0 )
     STRIPE_B      = (0.96, 0.97, 0.99)
-    GRID          = (0.78, 0.78, 0.78)
-    REDACT_BG     = (0.0,  0.0,  0.0 )
-    REDACT_FG     = (1.0,  1.0,  1.0 )
+    GRID          = (0.80, 0.82, 0.85)
+    REDACT_BLUE   = (0.0,  0.13, 0.48)
+    REDACT_PILL_BG = (0.90, 0.94, 0.99)
+    REDACT_PILL_BORDER = (0.75, 0.83, 0.95)
     TEXT_FG       = (0.08, 0.08, 0.08)
     SHEET_HDR_BG  = (0.10, 0.50, 0.30)
     SHEET_HDR_FG  = (0.90, 0.97, 0.93)
+
+    font_norm = fitz.Font("helv")
+    font_bold = fitz.Font("hebo")
 
     for sheet_name in wb.sheetnames:
         sheet   = wb[sheet_name]
@@ -268,26 +272,75 @@ def _render_xlsx_native_pages(filepath: str) -> list[bytes]:
                 cell_str = str(cell_val).strip() if cell_val is not None else ""
 
                 rect = fitz.Rect(x, y, x + col_px, y + ROW_H)
-                is_redacted = "[REDACTED]" in cell_str
+                current_page.draw_rect(rect, color=GRID, fill=row_bg)
 
-                if is_redacted and not is_header_row:
-                    # Black box redaction — matches actual redacted Excel cell
-                    current_page.draw_rect(rect, color=GRID, fill=REDACT_BG)
-                    inner = fitz.Rect(rect.x0 + 1, rect.y0 + 1, rect.x1 - 1, rect.y1 - 1)
-                    current_page.insert_textbox(
-                        inner, cell_str,
-                        fontsize=FONT_SIZE, fontname="helv",
-                        color=REDACT_FG, align=1,
-                    )
-                else:
-                    current_page.draw_rect(rect, color=GRID, fill=row_bg)
-                    if cell_str:
-                        inner = fitz.Rect(rect.x0 + 2, rect.y0 + 1, rect.x1 - 2, rect.y1 - 1)
+                if cell_str:
+                    inner = fitz.Rect(rect.x0 + 3, rect.y0 + 1, rect.x1 - 3, rect.y1 - 1)
+                    if is_header_row:
                         current_page.insert_textbox(
                             inner, cell_str,
-                            fontsize=(FONT_HDR_SIZE if is_header_row else FONT_SIZE),
-                            fontname="helv", color=row_fg,
+                            fontsize=FONT_HDR_SIZE, fontname="helv",
+                            color=row_fg,
                         )
+                    elif "[REDACTED]" not in cell_str:
+                        current_page.insert_textbox(
+                            inner, cell_str,
+                            fontsize=FONT_SIZE, fontname="helv",
+                            color=TEXT_FG,
+                        )
+                    elif cell_str == "[REDACTED]":
+                        # Full-cell redaction: soft pill badge + bold dark blue text
+                        pill = fitz.Rect(rect.x0 + 4, rect.y0 + 2, rect.x1 - 4, rect.y1 - 2)
+                        current_page.draw_rect(pill, color=REDACT_PILL_BORDER, fill=REDACT_PILL_BG)
+                        current_page.insert_textbox(
+                            inner, "[REDACTED]",
+                            fontsize=FONT_SIZE, fontname="hebo",
+                            color=REDACT_BLUE, align=1,
+                        )
+                    else:
+                        # Partial-cell redaction: normal black text + bold dark blue [REDACTED]
+                        baseline_y = rect.y0 + 13
+                        curr_x = inner.x0
+                        parts = []
+                        curr = 0
+                        while True:
+                            idx = cell_str.find("[REDACTED]", curr)
+                            if idx == -1:
+                                if curr < len(cell_str):
+                                    parts.append((cell_str[curr:], False))
+                                break
+                            if idx > curr:
+                                parts.append((cell_str[curr:idx], False))
+                            parts.append(("[REDACTED]", True))
+                            curr = idx + len("[REDACTED]")
+
+                        for part_str, is_red in parts:
+                            f = font_bold if is_red else font_norm
+                            col = REDACT_BLUE if is_red else TEXT_FG
+                            fname = "hebo" if is_red else "helv"
+                            seg_w = f.text_length(part_str, fontsize=FONT_SIZE)
+
+                            if curr_x + seg_w > inner.x1:
+                                while len(part_str) > 1 and f.text_length(part_str + "…", fontsize=FONT_SIZE) > (inner.x1 - curr_x):
+                                    part_str = part_str[:-1]
+                                part_str = part_str + "…"
+                                seg_w = f.text_length(part_str, fontsize=FONT_SIZE)
+
+                            if is_red:
+                                pill = fitz.Rect(curr_x - 1, rect.y0 + 2, min(inner.x1, curr_x + seg_w + 1), rect.y1 - 2)
+                                current_page.draw_rect(pill, color=REDACT_PILL_BORDER, fill=REDACT_PILL_BG)
+
+                            current_page.insert_text(
+                                fitz.Point(curr_x, baseline_y),
+                                part_str,
+                                fontsize=FONT_SIZE,
+                                fontname=fname,
+                                color=col,
+                            )
+                            curr_x += seg_w
+                            if curr_x >= inner.x1:
+                                break
+
                 x += col_px
 
             y += ROW_H
