@@ -46,11 +46,17 @@ from parsers.ocr_parser import redact_docx_images, redact_pdf_ocr_regions
 
 MASK_TEXT = "[REDACTED]"
 
-# Openpyxl style objects for black-box redaction in Excel cells.
-# Black background + white foreground so "[REDACTED]" is clearly visible
-# against the dark fill, mimicking the look of a proper redaction marker.
-_BLACK_FILL = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
-_REDACT_FONT = XlFont(color="FFFFFF", bold=True)
+# ---------------------------------------------------------------------------
+# XLSX redaction colour constants
+# ---------------------------------------------------------------------------
+# IMPORTANT: openpyxl uses 8-digit ARGB hex internally.  If you supply a
+# 6-digit RGB string like "000000", openpyxl prepends "00" (alpha=0), which
+# Excel interprets as *transparent* — the fill becomes invisible and any white
+# font set on top of it is invisible on the white sheet background.
+# Always use the full 8-digit form with "FF" alpha (fully opaque).
+_BLACK_FILL = PatternFill(start_color="FF000000", end_color="FF000000", fill_type="solid")
+_REDACT_FONT_WHITE = XlFont(color="FFFFFFFF", bold=True)   # white on black
+_REDACT_FONT_BLACK = XlFont(color="FF000000", bold=True)   # black on white (partial cells)
 
 
 # ---------------------------------------------------------------------------
@@ -307,21 +313,18 @@ def redact_xlsx(
     Redact an .xlsx file at the *substring* level — only the exact PII text
     within each cell is replaced, leaving the surrounding content intact.
 
-    Improvement over the previous whole-cell wipe:
-      Before: cell "Contact John Doe at 9876543210" → "[REDACTED]"
-      After:  cell "Contact John Doe at 9876543210" → "Contact [REDACTED] at [REDACTED]"
+    Example:
+      Cell "Contact John Doe at 9876543210"  →  "Contact [REDACTED] at [REDACTED]"
 
-    Visual styling (blackout):
-      Any cell that contains at least one PII entity receives a solid black
-      background fill and white bold font.  This makes the cell look like a
-      proper redaction bar (black box) while preserving the surrounding text
-      that was NOT PII.
-
-    How offsets work:
-      entities carry global character offsets into the full_text string built
-      by xlsx_parser.  cell_map records the [start, end) slice of full_text
-      that corresponds to each cell.  We translate global → local offsets
-      (local = global − cell.start) to perform the in-cell substitution.
+    Styling strategy (two modes):
+      Full-cell PII  — The entity covers the ENTIRE original cell text (e.g., a
+        standalone phone number cell).  We apply a solid black fill with white
+        bold font so the cell looks like a proper redaction bar (black box).
+        IMPORTANT: use 8-digit ARGB "FF000000" not 6-digit "000000" — the latter
+        gets stored as "00000000" (alpha=0, transparent) by openpyxl.
+      Partial-cell PII — The entity is a substring inside a longer sentence.
+        We replace only the matched substring with [REDACTED] and keep the
+        original cell styling.  This preserves readability of surrounding text.
     """
     shutil.copy(filepath, output_path)
     workbook = load_workbook(output_path)
@@ -336,36 +339,37 @@ def redact_xlsx(
             continue  # nothing to redact in this cell
 
         sheet = workbook[cell_info["sheet_name"]]
-        cell = sheet[cell_info["coordinate"]]
-        original_text: str = cell_info["text"]  # the text we parsed at scan time
+        cell  = sheet[cell_info["coordinate"]]
+        original_text: str = cell_info["text"]  # text captured at scan time
 
         # ------------------------------------------------------------------ #
-        # Surgical text replacement                                            #
-        # Replace entities from right to left so earlier offsets stay valid   #
-        # after each substitution (same technique used in redact_txt).        #
+        # Surgical text replacement (right-to-left to preserve earlier offsets)
         # ------------------------------------------------------------------ #
         new_text = original_text
         for entity in sorted(cell_entities, key=lambda e: e["start"], reverse=True):
             local_start = entity["start"] - cell_info["start"]
             local_end   = entity["end"]   - cell_info["start"]
-            # Guard against offset drift (shouldn't happen, but be defensive).
             local_start = max(0, min(local_start, len(new_text)))
             local_end   = max(local_start, min(local_end, len(new_text)))
             new_text = new_text[:local_start] + MASK_TEXT + new_text[local_end:]
 
-        # Write the surgically-redacted text back into the cell.
         cell.value = new_text
 
         # ------------------------------------------------------------------ #
-        # Visual blackout styling                                              #
-        # Apply solid black fill + white bold text so the cell looks like a   #
-        # physical redaction marker rather than a plain text label.            #
-        # Note: openpyxl cannot apply per-character background colour, so the  #
-        # black fill covers the entire cell.  The white text makes it clear    #
-        # which cells have been redacted even when the rest of the sentence is  #
-        # visible in the cell value.                                            #
+        # Visual styling
         # ------------------------------------------------------------------ #
-        cell.fill = _BLACK_FILL
-        cell.font = _REDACT_FONT
+        # Count how many characters of the original cell were PII.
+        pii_char_count = sum(
+            min(e["end"], cell_info["end"]) - max(e["start"], cell_info["start"])
+            for e in cell_entities
+        )
+        is_full_cell_pii = pii_char_count >= len(original_text.strip())
+
+        if is_full_cell_pii:
+            # Entire cell is sensitive — apply black-box redaction marker.
+            cell.fill = _BLACK_FILL
+            cell.font = _REDACT_FONT_WHITE
+        # For partial-cell PII we keep original formatting; the [REDACTED]
+        # text is clearly visible in the cell content as normal black text.
 
     workbook.save(output_path)

@@ -183,50 +183,114 @@ def _render_xlsx_native_pages(filepath: str) -> list[bytes]:
     """
     Native Python fallback: Render an .xlsx spreadsheet into clean PNG page images
     using openpyxl and PyMuPDF (fitz) when LibreOffice is absent.
+
+    Improvements over the old version:
+    - Reads actual column widths from the workbook (proportional columns).
+    - Renders [REDACTED] cells as solid black boxes with white text so the
+      preview accurately reflects the redacted Excel file.
+    - Alternating row stripes for readability.
+    - Handles sheet overflow across multiple PDF pages.
     """
     import openpyxl
 
     wb = openpyxl.load_workbook(filepath, data_only=True)
     doc = fitz.open()
 
+    PAGE_W, PAGE_H   = 792, 612
+    MARGIN           = 36
+    USABLE_W         = PAGE_W - 2 * MARGIN
+    ROW_H            = 20
+    HEADER_H         = 28
+    FONT_SIZE        = 8.5
+    FONT_HDR_SIZE    = 9.5
+    MAX_ROWS         = 200
+    MAX_COLS         = 20
+
+    # colours (RGB 0-1 tuples)
+    COL_HEADER_BG = (0.22, 0.35, 0.55)
+    COL_HEADER_FG = (1.0,  1.0,  1.0 )
+    STRIPE_A      = (1.0,  1.0,  1.0 )
+    STRIPE_B      = (0.96, 0.97, 0.99)
+    GRID          = (0.78, 0.78, 0.78)
+    REDACT_BG     = (0.0,  0.0,  0.0 )
+    REDACT_FG     = (1.0,  1.0,  1.0 )
+    TEXT_FG       = (0.08, 0.08, 0.08)
+    SHEET_HDR_BG  = (0.10, 0.50, 0.30)
+    SHEET_HDR_FG  = (0.90, 0.97, 0.93)
+
     for sheet_name in wb.sheetnames:
-        sheet = wb[sheet_name]
-        pdf_page = doc.new_page(width=792, height=612)  # Landscape letter
-        margin = 40
-        y = margin
+        sheet   = wb[sheet_name]
+        max_row = min(sheet.max_row   or 1, MAX_ROWS)
+        max_col = min(sheet.max_column or 1, MAX_COLS)
 
-        # Sheet header
-        pdf_page.draw_rect(fitz.Rect(margin, y, 792 - margin, y + 26), color=(0.1, 0.5, 0.3), fill=(0.9, 0.97, 0.93))
-        pdf_page.insert_text(fitz.Point(margin + 10, y + 18), f"Spreadsheet Sheet: {sheet_name}", fontsize=12, fontname="helv", color=(0.05, 0.3, 0.15))
-        y += 40
+        # Build proportional column widths from workbook hints.
+        # Fall back to 8.43 (Excel default) when no explicit width is set.
+        raw_widths = []
+        for ci in range(1, max_col + 1):
+            col_letter = openpyxl.utils.get_column_letter(ci)
+            dim = sheet.column_dimensions.get(col_letter)
+            w = dim.width if (dim and dim.width) else 8.43
+            raw_widths.append(max(w, 2.0))
 
-        max_row = min(sheet.max_row or 1, 60)
-        max_col = min(sheet.max_column or 1, 10)
+        total_raw     = sum(raw_widths)
+        col_widths_px = [w / total_raw * USABLE_W for w in raw_widths]
 
-        col_width = (792 - 2 * margin) / max(1, max_col)
-        row_height = 20
+        current_page = None
+        y = 0
+
+        def _new_page(label: str):
+            page = doc.new_page(width=PAGE_W, height=PAGE_H)
+            py = MARGIN
+            page.draw_rect(
+                fitz.Rect(MARGIN, py, PAGE_W - MARGIN, py + HEADER_H),
+                color=SHEET_HDR_BG, fill=SHEET_HDR_BG,
+            )
+            page.insert_text(
+                fitz.Point(MARGIN + 8, py + HEADER_H - 8),
+                f"Sheet: {label}",
+                fontsize=11, fontname="helv", color=SHEET_HDR_FG,
+            )
+            return page, py + HEADER_H + 4
+
+        current_page, y = _new_page(sheet_name)
 
         for r in range(1, max_row + 1):
-            if y + row_height > 612 - margin:
-                pdf_page = doc.new_page(width=792, height=612)
-                y = margin
+            if y + ROW_H > PAGE_H - MARGIN:
+                current_page, y = _new_page(f"{sheet_name} (cont.)")
 
-            for c in range(1, max_col + 1):
-                val = sheet.cell(row=r, column=c).value
-                cell_str = str(val) if val is not None else ""
+            is_header_row = (r == 1)
+            row_bg = COL_HEADER_BG if is_header_row else (STRIPE_A if r % 2 == 1 else STRIPE_B)
+            row_fg = COL_HEADER_FG if is_header_row else TEXT_FG
 
-                x1 = margin + (c - 1) * col_width
-                y1 = y
-                x2 = x1 + col_width
-                y2 = y1 + row_height
+            x = MARGIN
+            for ci, col_px in enumerate(col_widths_px, start=1):
+                cell_val = sheet.cell(row=r, column=ci).value
+                cell_str = str(cell_val).strip() if cell_val is not None else ""
 
-                rect = fitz.Rect(x1, y1, x2, y2)
-                bg_color = (0.92, 0.95, 0.98) if r == 1 else (1.0, 1.0, 1.0)
-                pdf_page.draw_rect(rect, color=(0.8, 0.8, 0.8), fill=bg_color)
-                if cell_str:
-                    pdf_page.insert_textbox(rect, f" {cell_str}", fontsize=9, fontname="helv", color=(0.1, 0.1, 0.1))
+                rect = fitz.Rect(x, y, x + col_px, y + ROW_H)
+                is_redacted = "[REDACTED]" in cell_str
 
-            y += row_height
+                if is_redacted and not is_header_row:
+                    # Black box redaction — matches actual redacted Excel cell
+                    current_page.draw_rect(rect, color=GRID, fill=REDACT_BG)
+                    inner = fitz.Rect(rect.x0 + 1, rect.y0 + 1, rect.x1 - 1, rect.y1 - 1)
+                    current_page.insert_textbox(
+                        inner, cell_str,
+                        fontsize=FONT_SIZE, fontname="helv",
+                        color=REDACT_FG, align=1,
+                    )
+                else:
+                    current_page.draw_rect(rect, color=GRID, fill=row_bg)
+                    if cell_str:
+                        inner = fitz.Rect(rect.x0 + 2, rect.y0 + 1, rect.x1 - 2, rect.y1 - 1)
+                        current_page.insert_textbox(
+                            inner, cell_str,
+                            fontsize=(FONT_HDR_SIZE if is_header_row else FONT_SIZE),
+                            fontname="helv", color=row_fg,
+                        )
+                x += col_px
+
+            y += ROW_H
 
     pages = []
     mat = fitz.Matrix(_ZOOM, _ZOOM)
