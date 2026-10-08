@@ -42,7 +42,13 @@ from core.merge import merge_detections
 from core.redactor import redact_docx, redact_pdf, redact_txt, redact_xlsx
 from core.report import build_json_report, save_report
 from parsers.docx_parser import parse_docx
-from parsers.ocr_parser import IMAGE_EXTENSIONS, get_ocr_status, parse_image_ocr, redact_image
+from parsers.ocr_parser import (
+    IMAGE_EXTENSIONS,
+    detect_ocr_brand_entities,
+    get_ocr_status,
+    parse_image_ocr,
+    redact_image,
+)
 from parsers.pdf_parser import parse_pdf
 from parsers.txt_parser import parse_txt
 from parsers.xlsx_parser import parse_xlsx
@@ -124,9 +130,20 @@ def process_document(
     # ------------------------------------------------------------------ #
     # Step 2 — Run both detectors and merge their results                 #
     # ------------------------------------------------------------------ #
+    review_candidates: list[dict] = []
     regex_hits = detect_regex_pii(text, include=include, exclude=exclude)
-    ner_hits   = detect_ner_pii(text,   include=include, exclude=exclude)
-    entities   = merge_detections(regex_hits, ner_hits)
+    ner_hits   = detect_ner_pii(
+        text,
+        include=include,
+        exclude=exclude,
+        review_candidates=review_candidates,
+    )
+    ocr_hits = detect_ocr_brand_entities(
+        structure_map,
+        include=include,
+        exclude=exclude,
+    )
+    entities   = merge_detections(regex_hits, ner_hits + ocr_hits)
     entities   = _expand_consistent_entities(text, entities)
 
     # ------------------------------------------------------------------ #
@@ -149,7 +166,12 @@ def process_document(
     # ------------------------------------------------------------------ #
     # Step 4 — Build and save the JSON report                             #
     # ------------------------------------------------------------------ #
-    report      = build_json_report(entities, filename, extra_warnings=warnings)
+    report      = build_json_report(
+        entities,
+        filename,
+        review_candidates=review_candidates,
+        extra_warnings=warnings,
+    )
     report_path = os.path.join(output_dir, f"{stem}_report.json")
     save_report(report, report_path)
 
