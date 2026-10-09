@@ -206,38 +206,60 @@ def _render_xlsx_native_pages(filepath: str) -> list[bytes]:
     MAX_ROWS         = 200
     MAX_COLS         = 20
 
-    # colours (RGB 0-1 tuples)
-    COL_HEADER_BG = (0.22, 0.35, 0.55)
-    COL_HEADER_FG = (1.0,  1.0,  1.0 )
+    # colours (RGB 0-1 tuples) - clean, realistic spreadsheet styling
+    COL_HEADER_BG = (0.93, 0.94, 0.97)
+    COL_HEADER_FG = (0.12, 0.16, 0.24)
     STRIPE_A      = (1.0,  1.0,  1.0 )
-    STRIPE_B      = (0.96, 0.97, 0.99)
-    GRID          = (0.80, 0.82, 0.85)
+    STRIPE_B      = (0.98, 0.985, 0.995)
+    GRID          = (0.84, 0.86, 0.89)
     REDACT_BLUE   = (0.0,  0.13, 0.48)
     REDACT_PILL_BG = (0.90, 0.94, 0.99)
     REDACT_PILL_BORDER = (0.75, 0.83, 0.95)
     TEXT_FG       = (0.08, 0.08, 0.08)
-    SHEET_HDR_BG  = (0.10, 0.50, 0.30)
-    SHEET_HDR_FG  = (0.90, 0.97, 0.93)
+    SHEET_TAB_BG  = (0.92, 0.94, 0.97)
+    SHEET_TAB_FG  = (0.15, 0.20, 0.32)
+    SHEET_TAB_BORDER = (0.80, 0.83, 0.88)
 
     font_norm = fitz.Font("helv")
     font_bold = fitz.Font("hebo")
 
     for sheet_name in wb.sheetnames:
-        sheet   = wb[sheet_name]
-        max_row = min(sheet.max_row   or 1, MAX_ROWS)
-        max_col = min(sheet.max_column or 1, MAX_COLS)
+        sheet = wb[sheet_name]
 
-        # Build proportional column widths from workbook hints.
-        # Fall back to 8.43 (Excel default) when no explicit width is set.
-        raw_widths = []
+        # Calculate actual non-empty row and column bounds
+        actual_max_row = 1
+        actual_max_col = 1
+        for row in sheet.iter_rows(values_only=True):
+            for ci, val in enumerate(row, start=1):
+                if val is not None and str(val).strip() != "":
+                    actual_max_col = max(actual_max_col, ci)
+        for r in range(min(sheet.max_row or 1, MAX_ROWS), 0, -1):
+            if any(
+                sheet.cell(row=r, column=c).value is not None
+                and str(sheet.cell(row=r, column=c).value).strip() != ""
+                for c in range(1, min(actual_max_col + 1, MAX_COLS + 1))
+            ):
+                actual_max_row = r
+                break
+
+        max_row = min(actual_max_row, MAX_ROWS)
+        max_col = min(actual_max_col, MAX_COLS)
+
+        # Proportional column widths based on content lengths
+        col_lens = []
         for ci in range(1, max_col + 1):
-            col_letter = openpyxl.utils.get_column_letter(ci)
-            dim = sheet.column_dimensions.get(col_letter)
-            w = dim.width if (dim and dim.width) else 8.43
-            raw_widths.append(max(w, 2.0))
+            max_len = 0
+            for r in range(1, max_row + 1):
+                val = sheet.cell(row=r, column=ci).value
+                if val is not None:
+                    max_len = max(max_len, len(str(val).strip()))
+            col_lens.append(max(max_len, 8))
 
-        total_raw     = sum(raw_widths)
-        col_widths_px = [w / total_raw * USABLE_W for w in raw_widths]
+        total_content_len = max(sum(col_lens), 1)
+        col_widths_px = [max(45.0, l / total_content_len * USABLE_W) for l in col_lens]
+        total_px = sum(col_widths_px)
+        if total_px > USABLE_W:
+            col_widths_px = [w / total_px * USABLE_W for w in col_widths_px]
 
         current_page = None
         y = 0
@@ -245,16 +267,18 @@ def _render_xlsx_native_pages(filepath: str) -> list[bytes]:
         def _new_page(label: str):
             page = doc.new_page(width=PAGE_W, height=PAGE_H)
             py = MARGIN
+            # Clean sheet tab header
+            tab_w = min(220, max(120, len(label) * 8 + 24))
             page.draw_rect(
-                fitz.Rect(MARGIN, py, PAGE_W - MARGIN, py + HEADER_H),
-                color=SHEET_HDR_BG, fill=SHEET_HDR_BG,
+                fitz.Rect(MARGIN, py, MARGIN + tab_w, py + 22),
+                color=SHEET_TAB_BORDER, fill=SHEET_TAB_BG,
             )
             page.insert_text(
-                fitz.Point(MARGIN + 8, py + HEADER_H - 8),
+                fitz.Point(MARGIN + 10, py + 15),
                 f"Sheet: {label}",
-                fontsize=11, fontname="helv", color=SHEET_HDR_FG,
+                fontsize=9.5, fontname="hebo", color=SHEET_TAB_FG,
             )
-            return page, py + HEADER_H + 4
+            return page, py + 26
 
         current_page, y = _new_page(sheet_name)
 

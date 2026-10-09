@@ -186,7 +186,7 @@ _ORG_LEGAL_OR_BRAND_TERMS = {
     "siemens", "honeywell", "intel", "samsung", "sony", "tata", "infosys", "wipro",
     "accenture", "cognizant", "dell", "nvidia", "amd", "tesla", "meta",
     "facebook", "adobe", "salesforce", "whatsapp", "instagram", "linkedin",
-    "youtube", "engati", "hp",
+    "youtube", "engati", "hp", "azure", "aws", "gcp",
     # Financial institutions
     "jpmorganchase", "jpmorgan", "goldman", "citibank", "citigroup", "barclays",
     "hsbc", "ubs", "deutsche", "wellsfargo", "bofa", "blackrock", "vanguard",
@@ -497,7 +497,10 @@ def detect_ner_pii(
     for ent in doc.ents:
         output_category = LABEL_MAP.get(ent.label_)
         if output_category is None:
-            continue
+            if ent.label_ == "PRODUCT" and ent.text.strip().lower() in _ORG_LEGAL_OR_BRAND_TERMS:
+                output_category = "ORGANIZATION"
+            else:
+                continue
 
         ent_text = ent.text.strip()
         words = _normalized_words(ent_text)

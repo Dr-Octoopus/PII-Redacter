@@ -106,6 +106,7 @@ export default function App() {
           <div>
             <ComparisonView
               jobId={jobData.job_id}
+              filename={jobData.filename}
               renderType={jobData.render_type}
               totalPages={jobData.original_pages}
               originalText={jobData.original_text}

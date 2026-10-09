@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Eye, ZoomIn, ZoomOut, RotateCcw, Columns, Maximize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, ZoomIn, ZoomOut, RotateCcw, Columns, Maximize2, AlertTriangle } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
 
-export default function ComparisonView({ jobId, renderType, totalPages, originalText, redactedText }) {
+export default function ComparisonView({ jobId, filename, renderType, totalPages, originalText, redactedText }) {
   const [currentPage, setCurrentPage] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [viewMode, setViewMode] = useState('split'); // 'split' | 'redacted-only'
+
+  const isXlsx = Boolean(filename && /\.(xlsx|xls)$/i.test(filename));
 
   const prevPage = () => {
     if (currentPage > 0) setCurrentPage(currentPage - 1);
@@ -92,6 +94,30 @@ export default function ComparisonView({ jobId, renderType, totalPages, original
           )}
         </div>
       </div>
+
+      {/* Notice for Excel files */}
+      {isXlsx && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            padding: '0.75rem 1rem',
+            marginBottom: '1.25rem',
+            borderRadius: 'var(--radius-sm)',
+            background: 'rgba(234, 179, 8, 0.10)',
+            border: '1px solid rgba(234, 179, 8, 0.30)',
+            color: 'var(--text-primary)',
+            fontSize: '0.85rem',
+            lineHeight: 1.5,
+          }}
+        >
+          <AlertTriangle size={18} color="#eab308" style={{ flexShrink: 0 }} />
+          <span>
+            <strong>Excel Preview Notice:</strong> The visual preview for Excel (.xlsx) files is an approximate tabular representation and does not reflect 100% of the original sheet layout, font styles, or formatting. Your downloaded file preserves the exact Excel spreadsheet structure with clean, surgical dark-blue redaction.
+          </span>
+        </div>
+      )}
 
       <div
         className="comparison-layout"

@@ -276,4 +276,17 @@ def detect_context_pii(text: str) -> list[dict]:
                 "confidence": 0.92,
             })
 
+    # 5. Major Cloud Platforms & Known Tech Brands (e.g. Microsoft Azure, Azure, AWS)
+    for m in re.finditer(r"(?i)\b(microsoft\s+azure|azure(?:\s+cloud)?|aws(?:\s+cloud)?)\b", text):
+        raw_match = m.group(1).strip()
+        add_detection({
+            "text": raw_match,
+            "category": "ORGANIZATION",
+            "start": m.start(1),
+            "end": m.start(1) + len(raw_match),
+            "detection_method": "context_rule",
+            "confidence": 0.94,
+        })
+
     return detections
+

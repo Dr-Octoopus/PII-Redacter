@@ -82,12 +82,15 @@ PII_PATTERNS: dict[str, tuple[re.Pattern, float]] = {
         0.93,
     ),
 
-    # Dates: DD/MM/YYYY, YYYY-MM-DD, DD.MM.YYYY, 15-Aug-1995, 15 Aug 1995.
+    # Dates: DD/MM/YYYY, YYYY-MM-DD, Month DD YYYY, DD Month YYYY, with optional timestamps (from Excel).
     "DATE_OF_BIRTH": (
         re.compile(
-            r"(?i)\b(?:\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4}"
-            r"|\d{4}[/\-\.]\d{1,2}[/\-\.]\d{1,2}"
-            r"|\d{1,2}[\s\-\.](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-\.]\d{2,4})\b"
+            r"(?i)\b(?:"
+            r"\d{4}[/\-\.]\d{1,2}[/\-\.]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?"
+            r"|\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?"
+            r"|\d{1,2}(?:st|nd|rd|th)?[\s\-\.]+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[\s\-\.,]+(?:\d{2,4})?"
+            r"|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[\s\-\.]+\d{1,2}(?:st|nd|rd|th)?(?:[\s\-\.,]+\d{2,4})?"
+            r")\b"
         ),
         0.90,
     ),
