@@ -15,7 +15,7 @@ Instead of one flat 0.95 for every regex match, each pattern gets its
 own base score that reflects how precise its regex actually is:
 
   - Very strict format (EMAIL, PAN)        → 0.97-0.98  (almost never wrong)
-  - Good format with rare false-positives  → 0.90-0.93  (PHONE, DATE, IP)
+  - Good format with rare false-positives  → 0.90-0.93  (PHONE, DATE, IP, URL)
   - Moderate — can match non-PII numbers   → 0.80-0.88  (AADHAAR, CREDIT_CARD)
   - Broad pattern — many common numbers    → 0.78        (PINCODE)
 
@@ -82,12 +82,15 @@ PII_PATTERNS: dict[str, tuple[re.Pattern, float]] = {
         0.93,
     ),
 
-    # Dates: DD/MM/YYYY, YYYY-MM-DD, DD.MM.YYYY, 15-Aug-1995, 15 Aug 1995.
+    # Dates: DD/MM/YYYY, YYYY-MM-DD, Month DD YYYY, DD Month YYYY, with optional timestamps (from Excel).
     "DATE_OF_BIRTH": (
         re.compile(
-            r"(?i)\b(?:\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4}"
-            r"|\d{4}[/\-\.]\d{1,2}[/\-\.]\d{1,2}"
-            r"|\d{1,2}[\s\-\.](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-\.]\d{2,4})\b"
+            r"(?i)\b(?:"
+            r"\d{4}[/\-\.]\d{1,2}[/\-\.]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?"
+            r"|\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?"
+            r"|\d{1,2}(?:st|nd|rd|th)?[\s\-\.]+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[\s\-\.,]+(?:\d{2,4})?"
+            r"|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[\s\-\.]+\d{1,2}(?:st|nd|rd|th)?(?:[\s\-\.,]+\d{2,4})?"
+            r")\b"
         ),
         0.90,
     ),
@@ -164,6 +167,43 @@ PII_PATTERNS: dict[str, tuple[re.Pattern, float]] = {
         re.compile(r"\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b"),
         0.97,
     ),
+
+    # ------------------------------------------------------------------ #
+    # Website / URL                                                        #
+    # ------------------------------------------------------------------ #
+
+    # Matches:
+    #   • Full scheme URLs:  http://example.com/path?q=1
+    #                        https://secure.bank.in/login
+    #                        ftp://files.server.net
+    #   • www-prefixed:      www.google.com/search
+    #   • Bare known-TLD:    github.com  paypal.com  mysite.co.in
+    # Negative lookbehind (?<!@) prevents matching the domain half of an
+    # email address that was already captured by the EMAIL pattern.
+    # Confidence 0.91: very precise for scheme/www forms; bare-domain form
+    # can occasionally match version strings like "release.io" so slightly
+    # below strict-format patterns.
+    "URL": (
+        re.compile(
+            r"(?i)"
+            r"(?:"
+            # Scheme-based: http://, https://, ftp:// followed by any non-space chars
+            r"(?:https?|ftp)://[^\s<>'\"()\[\]]{2,}"
+            r"|"
+            # www. prefix (no scheme needed)
+            r"www\.[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?"
+            r"(?:\.[a-z]{2,})+(?:/[^\s<>'\"()\[\]]*)?"
+            r"|"
+            # Bare domain with well-known TLD — must NOT be preceded by @ (not email)
+            r"(?<![\w@])[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?"
+            r"\.(?:com|org|net|edu|gov|mil|io|ai|co\.in|co|in|info"
+            r"|biz|me|tech|dev|app|xyz|online|site|store|cloud|live"
+            r"|finance|bank|health|legal|media|news|shop|travel)"
+            r"(?:/[^\s<>'\"()\[\]]*)?(?=[\s,;:)!?\"']|$)"
+            r")"
+        ),
+        0.91,
+    ),
 }
 
 # Public list of all valid category names — useful for validation in CLI/API.
@@ -235,7 +275,7 @@ def detect_regex_pii(
     Category names (pass these to include/exclude):
         EMAIL, PAN_NUMBER, PHONE_NUMBER, DATE_OF_BIRTH, IP_ADDRESS,
         AADHAAR_NUMBER, CREDIT_CARD, PINCODE,
-        BANK_ACCOUNT_NUMBER, IFSC_CODE
+        BANK_ACCOUNT_NUMBER, IFSC_CODE, GSTIN, URL
     """
     # Determine which categories to actually run.
     if include:

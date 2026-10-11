@@ -40,10 +40,23 @@ from typing import Optional
 import pymupdf as fitz  # PyMuPDF (modern import path)
 from docx import Document
 from openpyxl import load_workbook
+from openpyxl.cell.rich_text import CellRichText, TextBlock
+from openpyxl.cell.text import InlineFont
+from openpyxl.styles import PatternFill, Font as XlFont
 
 from parsers.ocr_parser import redact_docx_images, redact_pdf_ocr_regions
 
 MASK_TEXT = "[REDACTED]"
+
+# ---------------------------------------------------------------------------
+# XLSX redaction styling constants
+# ---------------------------------------------------------------------------
+# Default cell background (white/original) and normal text (black) are preserved.
+# The redacted token [REDACTED] is styled in bold dark blue (#002060).
+# Using 8-digit ARGB format ('FF' alpha prefix) ensures full opacity in Excel.
+_DARK_BLUE_FONT = InlineFont(b=True, color="FF002060")
+_NORMAL_FONT    = InlineFont(b=False, color="FF000000")
+_REDACT_FONT_DARK_BLUE = XlFont(color="FF002060", bold=True)
 
 
 # ---------------------------------------------------------------------------
@@ -297,30 +310,80 @@ def redact_xlsx(
     output_path: str,
 ) -> None:
     """
-    Redact an .xlsx file by overwriting only the specific cells that
-    contained PII, leaving every other cell, formula, and formatting
-    untouched.
+    Redact an .xlsx file at the *substring* level — only the exact PII text
+    within each cell is replaced, leaving the surrounding content intact.
 
-    Detections carry character offsets into the combined full_text.
-    We use `cell_map` (produced by xlsx_parser.parse_xlsx) to translate
-    those offsets back into (sheet_name, coordinate) pairs — the same
-    pattern redact_docx uses with structure_map.
+    Example:
+      Cell "Contact John Doe at 9876543210"  →  "Contact [REDACTED] at [REDACTED]"
+
+    Styling strategy (two modes):
+      Full-cell PII  — The entity covers the ENTIRE original cell text (e.g., a
+        standalone phone number cell).  We apply a solid black fill with white
+        bold font so the cell looks like a proper redaction bar (black box).
+        IMPORTANT: use 8-digit ARGB "FF000000" not 6-digit "000000" — the latter
+        gets stored as "00000000" (alpha=0, transparent) by openpyxl.
+      Partial-cell PII — The entity is a substring inside a longer sentence.
+        We replace only the matched substring with [REDACTED] and keep the
+        original cell styling.  This preserves readability of surrounding text.
     """
     shutil.copy(filepath, output_path)
     workbook = load_workbook(output_path)
 
-    cells_to_redact: set[tuple[str, str]] = set()
     for cell_info in cell_map:
-        has_entity = any(
-            cell_info["start"] <= e["start"] < cell_info["end"]
-            for e in entities
-        )
-        if has_entity:
-            cells_to_redact.add(
-                (cell_info["sheet_name"], cell_info["coordinate"])
-            )
+        # Collect all entities whose global offset falls inside this cell.
+        cell_entities = [
+            e for e in entities
+            if cell_info["start"] <= e["start"] < cell_info["end"]
+        ]
+        if not cell_entities:
+            continue  # nothing to redact in this cell
 
-    for sheet_name, coordinate in cells_to_redact:
-        workbook[sheet_name][coordinate] = MASK_TEXT
+        sheet = workbook[cell_info["sheet_name"]]
+        cell  = sheet[cell_info["coordinate"]]
+        original_text: str = cell_info["text"]  # text captured at scan time
+
+        # Sort entities by start offset ascending
+        sorted_entities = sorted(cell_entities, key=lambda e: e["start"])
+
+        # Merge overlapping entity spans within this cell
+        merged_spans = []
+        for e in sorted_entities:
+            s = max(0, min(e["start"] - cell_info["start"], len(original_text)))
+            end = max(s, min(e["end"] - cell_info["start"], len(original_text)))
+            if s == end:
+                continue
+            if merged_spans and s <= merged_spans[-1][1]:
+                merged_spans[-1] = (merged_spans[-1][0], max(merged_spans[-1][1], end))
+            else:
+                merged_spans.append((s, end))
+
+        if not merged_spans:
+            continue
+
+        # Check if the entire cell is covered by redaction
+        is_full_cell = (
+            len(merged_spans) == 1
+            and merged_spans[0][0] == 0
+            and merged_spans[0][1] >= len(original_text.strip())
+        )
+
+        if is_full_cell:
+            cell.value = MASK_TEXT
+            cell.font = _REDACT_FONT_DARK_BLUE
+        else:
+            # Build rich text: normal black text for surrounding content,
+            # bold dark blue for [REDACTED] tokens
+            blocks = []
+            curr = 0
+            for s, end in merged_spans:
+                if s > curr:
+                    blocks.append(TextBlock(_NORMAL_FONT, original_text[curr:s]))
+                blocks.append(TextBlock(_DARK_BLUE_FONT, MASK_TEXT))
+                curr = end
+
+            if curr < len(original_text):
+                blocks.append(TextBlock(_NORMAL_FONT, original_text[curr:]))
+
+            cell.value = CellRichText(blocks)
 
     workbook.save(output_path)

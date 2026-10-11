@@ -27,7 +27,7 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
 OCR_ORG_BRANDS = {
     # Tech companies
-    "adobe", "amd", "amazon", "apple", "cisco", "cognizant", "dell",
+    "adobe", "amd", "amazon", "apple", "azure", "aws", "cisco", "cognizant", "dell",
     "emerson", "engati", "facebook", "google", "honeywell", "hp", "ibm",
     "infosys", "instagram", "intel", "linkedin", "meta", "microsoft",
     "nvidia", "oracle", "salesforce", "samsung", "siemens", "sony", "tata",

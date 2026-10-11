@@ -183,50 +183,191 @@ def _render_xlsx_native_pages(filepath: str) -> list[bytes]:
     """
     Native Python fallback: Render an .xlsx spreadsheet into clean PNG page images
     using openpyxl and PyMuPDF (fitz) when LibreOffice is absent.
+
+    Improvements over the old version:
+    - Reads actual column widths from the workbook (proportional columns).
+    - Renders [REDACTED] cells as solid black boxes with white text so the
+      preview accurately reflects the redacted Excel file.
+    - Alternating row stripes for readability.
+    - Handles sheet overflow across multiple PDF pages.
     """
     import openpyxl
 
     wb = openpyxl.load_workbook(filepath, data_only=True)
     doc = fitz.open()
 
+    PAGE_W, PAGE_H   = 792, 612
+    MARGIN           = 36
+    USABLE_W         = PAGE_W - 2 * MARGIN
+    ROW_H            = 20
+    HEADER_H         = 28
+    FONT_SIZE        = 8.5
+    FONT_HDR_SIZE    = 9.5
+    MAX_ROWS         = 200
+    MAX_COLS         = 20
+
+    # colours (RGB 0-1 tuples) - clean, realistic spreadsheet styling
+    COL_HEADER_BG = (0.93, 0.94, 0.97)
+    COL_HEADER_FG = (0.12, 0.16, 0.24)
+    STRIPE_A      = (1.0,  1.0,  1.0 )
+    STRIPE_B      = (0.98, 0.985, 0.995)
+    GRID          = (0.84, 0.86, 0.89)
+    REDACT_BLUE   = (0.0,  0.13, 0.48)
+    REDACT_PILL_BG = (0.90, 0.94, 0.99)
+    REDACT_PILL_BORDER = (0.75, 0.83, 0.95)
+    TEXT_FG       = (0.08, 0.08, 0.08)
+    SHEET_TAB_BG  = (0.92, 0.94, 0.97)
+    SHEET_TAB_FG  = (0.15, 0.20, 0.32)
+    SHEET_TAB_BORDER = (0.80, 0.83, 0.88)
+
+    font_norm = fitz.Font("helv")
+    font_bold = fitz.Font("hebo")
+
     for sheet_name in wb.sheetnames:
         sheet = wb[sheet_name]
-        pdf_page = doc.new_page(width=792, height=612)  # Landscape letter
-        margin = 40
-        y = margin
 
-        # Sheet header
-        pdf_page.draw_rect(fitz.Rect(margin, y, 792 - margin, y + 26), color=(0.1, 0.5, 0.3), fill=(0.9, 0.97, 0.93))
-        pdf_page.insert_text(fitz.Point(margin + 10, y + 18), f"Spreadsheet Sheet: {sheet_name}", fontsize=12, fontname="helv", color=(0.05, 0.3, 0.15))
-        y += 40
+        # Calculate actual non-empty row and column bounds
+        actual_max_row = 1
+        actual_max_col = 1
+        for row in sheet.iter_rows(values_only=True):
+            for ci, val in enumerate(row, start=1):
+                if val is not None and str(val).strip() != "":
+                    actual_max_col = max(actual_max_col, ci)
+        for r in range(min(sheet.max_row or 1, MAX_ROWS), 0, -1):
+            if any(
+                sheet.cell(row=r, column=c).value is not None
+                and str(sheet.cell(row=r, column=c).value).strip() != ""
+                for c in range(1, min(actual_max_col + 1, MAX_COLS + 1))
+            ):
+                actual_max_row = r
+                break
 
-        max_row = min(sheet.max_row or 1, 60)
-        max_col = min(sheet.max_column or 1, 10)
+        max_row = min(actual_max_row, MAX_ROWS)
+        max_col = min(actual_max_col, MAX_COLS)
 
-        col_width = (792 - 2 * margin) / max(1, max_col)
-        row_height = 20
+        # Proportional column widths based on content lengths
+        col_lens = []
+        for ci in range(1, max_col + 1):
+            max_len = 0
+            for r in range(1, max_row + 1):
+                val = sheet.cell(row=r, column=ci).value
+                if val is not None:
+                    max_len = max(max_len, len(str(val).strip()))
+            col_lens.append(max(max_len, 8))
+
+        total_content_len = max(sum(col_lens), 1)
+        col_widths_px = [max(45.0, l / total_content_len * USABLE_W) for l in col_lens]
+        total_px = sum(col_widths_px)
+        if total_px > USABLE_W:
+            col_widths_px = [w / total_px * USABLE_W for w in col_widths_px]
+
+        current_page = None
+        y = 0
+
+        def _new_page(label: str):
+            page = doc.new_page(width=PAGE_W, height=PAGE_H)
+            py = MARGIN
+            # Clean sheet tab header
+            tab_w = min(220, max(120, len(label) * 8 + 24))
+            page.draw_rect(
+                fitz.Rect(MARGIN, py, MARGIN + tab_w, py + 22),
+                color=SHEET_TAB_BORDER, fill=SHEET_TAB_BG,
+            )
+            page.insert_text(
+                fitz.Point(MARGIN + 10, py + 15),
+                f"Sheet: {label}",
+                fontsize=9.5, fontname="hebo", color=SHEET_TAB_FG,
+            )
+            return page, py + 26
+
+        current_page, y = _new_page(sheet_name)
 
         for r in range(1, max_row + 1):
-            if y + row_height > 612 - margin:
-                pdf_page = doc.new_page(width=792, height=612)
-                y = margin
+            if y + ROW_H > PAGE_H - MARGIN:
+                current_page, y = _new_page(f"{sheet_name} (cont.)")
 
-            for c in range(1, max_col + 1):
-                val = sheet.cell(row=r, column=c).value
-                cell_str = str(val) if val is not None else ""
+            is_header_row = (r == 1)
+            row_bg = COL_HEADER_BG if is_header_row else (STRIPE_A if r % 2 == 1 else STRIPE_B)
+            row_fg = COL_HEADER_FG if is_header_row else TEXT_FG
 
-                x1 = margin + (c - 1) * col_width
-                y1 = y
-                x2 = x1 + col_width
-                y2 = y1 + row_height
+            x = MARGIN
+            for ci, col_px in enumerate(col_widths_px, start=1):
+                cell_val = sheet.cell(row=r, column=ci).value
+                cell_str = str(cell_val).strip() if cell_val is not None else ""
 
-                rect = fitz.Rect(x1, y1, x2, y2)
-                bg_color = (0.92, 0.95, 0.98) if r == 1 else (1.0, 1.0, 1.0)
-                pdf_page.draw_rect(rect, color=(0.8, 0.8, 0.8), fill=bg_color)
+                rect = fitz.Rect(x, y, x + col_px, y + ROW_H)
+                current_page.draw_rect(rect, color=GRID, fill=row_bg)
+
                 if cell_str:
-                    pdf_page.insert_textbox(rect, f" {cell_str}", fontsize=9, fontname="helv", color=(0.1, 0.1, 0.1))
+                    inner = fitz.Rect(rect.x0 + 3, rect.y0 + 1, rect.x1 - 3, rect.y1 - 1)
+                    if is_header_row:
+                        current_page.insert_textbox(
+                            inner, cell_str,
+                            fontsize=FONT_HDR_SIZE, fontname="helv",
+                            color=row_fg,
+                        )
+                    elif "[REDACTED]" not in cell_str:
+                        current_page.insert_textbox(
+                            inner, cell_str,
+                            fontsize=FONT_SIZE, fontname="helv",
+                            color=TEXT_FG,
+                        )
+                    elif cell_str == "[REDACTED]":
+                        # Full-cell redaction: soft pill badge + bold dark blue text
+                        pill = fitz.Rect(rect.x0 + 4, rect.y0 + 2, rect.x1 - 4, rect.y1 - 2)
+                        current_page.draw_rect(pill, color=REDACT_PILL_BORDER, fill=REDACT_PILL_BG)
+                        current_page.insert_textbox(
+                            inner, "[REDACTED]",
+                            fontsize=FONT_SIZE, fontname="hebo",
+                            color=REDACT_BLUE, align=1,
+                        )
+                    else:
+                        # Partial-cell redaction: normal black text + bold dark blue [REDACTED]
+                        baseline_y = rect.y0 + 13
+                        curr_x = inner.x0
+                        parts = []
+                        curr = 0
+                        while True:
+                            idx = cell_str.find("[REDACTED]", curr)
+                            if idx == -1:
+                                if curr < len(cell_str):
+                                    parts.append((cell_str[curr:], False))
+                                break
+                            if idx > curr:
+                                parts.append((cell_str[curr:idx], False))
+                            parts.append(("[REDACTED]", True))
+                            curr = idx + len("[REDACTED]")
 
-            y += row_height
+                        for part_str, is_red in parts:
+                            f = font_bold if is_red else font_norm
+                            col = REDACT_BLUE if is_red else TEXT_FG
+                            fname = "hebo" if is_red else "helv"
+                            seg_w = f.text_length(part_str, fontsize=FONT_SIZE)
+
+                            if curr_x + seg_w > inner.x1:
+                                while len(part_str) > 1 and f.text_length(part_str + "…", fontsize=FONT_SIZE) > (inner.x1 - curr_x):
+                                    part_str = part_str[:-1]
+                                part_str = part_str + "…"
+                                seg_w = f.text_length(part_str, fontsize=FONT_SIZE)
+
+                            if is_red:
+                                pill = fitz.Rect(curr_x - 1, rect.y0 + 2, min(inner.x1, curr_x + seg_w + 1), rect.y1 - 2)
+                                current_page.draw_rect(pill, color=REDACT_PILL_BORDER, fill=REDACT_PILL_BG)
+
+                            current_page.insert_text(
+                                fitz.Point(curr_x, baseline_y),
+                                part_str,
+                                fontsize=FONT_SIZE,
+                                fontname=fname,
+                                color=col,
+                            )
+                            curr_x += seg_w
+                            if curr_x >= inner.x1:
+                                break
+
+                x += col_px
+
+            y += ROW_H
 
     pages = []
     mat = fitz.Matrix(_ZOOM, _ZOOM)

@@ -13,6 +13,7 @@ const CATEGORIES = [
   { id: 'BANK_ACCOUNT_NUMBER', name: 'Bank Account' },
   { id: 'IFSC_CODE', name: 'IFSC Code' },
   { id: 'GSTIN', name: 'GSTIN' },
+  { id: 'URL', name: 'Website / URL' },
   { id: 'PERSON_NAME', name: 'Person Name (NER)' },
   { id: 'LOCATION', name: 'Location (NER)' },
   { id: 'ORGANIZATION', name: 'Organization (NER)' },
