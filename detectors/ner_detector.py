@@ -93,6 +93,8 @@ LABEL_MAP: dict[str, str] = {
     "PERSON": "PERSON_NAME",
     "GPE":    "LOCATION",
     "LOC":    "LOCATION",
+    "FAC":    "LOCATION",
+    "NORP":   "LOCATION",
     "ORG":    "ORGANIZATION",
 }
 
@@ -102,12 +104,16 @@ _BASE_CONFIDENCE_TRF: dict[str, float] = {
     "PERSON": 0.85,
     "GPE":    0.88,
     "LOC":    0.88,
+    "FAC":    0.86,
+    "NORP":   0.88,
     "ORG":    0.86,
 }
 _BASE_CONFIDENCE_SM: dict[str, float] = {
     "PERSON": 0.75,
     "GPE":    0.80,
     "LOC":    0.80,
+    "FAC":    0.78,
+    "NORP":   0.80,
     "ORG":    0.78,
 }
 _BASE_CONFIDENCE = (
@@ -186,7 +192,7 @@ _ORG_LEGAL_OR_BRAND_TERMS = {
     "siemens", "honeywell", "intel", "samsung", "sony", "tata", "infosys", "wipro",
     "accenture", "cognizant", "dell", "nvidia", "amd", "tesla", "meta",
     "facebook", "adobe", "salesforce", "whatsapp", "instagram", "linkedin",
-    "youtube", "engati", "hp", "azure", "aws", "gcp",
+    "youtube", "engati", "hp", "azure", "aws", "gcp", "geeksforgeeks", "gfg",
     # Financial institutions
     "jpmorganchase", "jpmorgan", "goldman", "citibank", "citigroup", "barclays",
     "hsbc", "ubs", "deutsche", "wellsfargo", "bofa", "blackrock", "vanguard",

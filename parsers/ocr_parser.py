@@ -31,12 +31,22 @@ OCR_ORG_BRANDS = {
     "emerson", "engati", "facebook", "google", "honeywell", "hp", "ibm",
     "infosys", "instagram", "intel", "linkedin", "meta", "microsoft",
     "nvidia", "oracle", "salesforce", "samsung", "siemens", "sony", "tata",
-    "tesla", "whatsapp", "wipro", "youtube",
+    "tesla", "whatsapp", "wipro", "youtube", "geeksforgeeks", "gfg",
     # Financial institutions (often appear as logos on documents)
     "jpmorganchase", "jpmorgan", "goldman", "citibank", "citigroup",
     "barclays", "hsbc", "ubs", "deutsche", "wellsfargo", "blackrock",
     "mastercard", "visa", "paypal", "stripe", "hdfc", "icici", "axis",
     "kotak", "reliance", "bajaj",
+}
+
+OCR_LOCATIONS = {
+    # Prominent countries, states, territories, geographic features, and cities
+    "india", "indian", "usa", "uk", "america", "england", "germany", "france",
+    "japan", "china", "singapore", "australia", "canada", "brazil", "russia",
+    "spain", "italy", "delhi", "mumbai", "pune", "bangalore", "bengaluru",
+    "hyderabad", "chennai", "kolkata", "maharashtra", "gujarat", "karnataka",
+    "rajasthan", "punjab", "kerala", "himalayas", "andaman", "nicobar",
+    "lakshadweep", "noida", "gurgaon", "gurugram"
 }
 
 
@@ -293,20 +303,21 @@ def detect_ocr_brand_entities(
     exclude: list[str] | None = None,
 ) -> list[dict]:
     """
-    Detect clean brand/logo words from OCR regions.
+    Detect clean brand/logo and location words from OCR regions.
 
-    This is deliberately narrow: it only uses words already produced by OCR
-    regions, and only for known organization brand tokens. It catches logos
-    that spaCy sometimes misses, without broadening normal text detection.
+    Catches brand logos (e.g. GeeksforGeeks, Microsoft) and geographic locations
+    (e.g. INDIA, Himalayas) from extracted OCR word boxes.
     """
     if not structure_map:
         return []
 
+    active_cats = {"ORGANIZATION", "LOCATION"}
     if include:
-        active = {c.upper() for c in include}
-        if "ORGANIZATION" not in active:
-            return []
-    elif exclude and "ORGANIZATION" in {c.upper() for c in exclude}:
+        active_cats = {c.upper() for c in include} & active_cats
+    elif exclude:
+        active_cats = active_cats - {c.upper() for c in exclude}
+
+    if not active_cats:
         return []
 
     detections: list[dict] = []
@@ -314,21 +325,31 @@ def detect_ocr_brand_entities(
 
     def add_word(global_start: int, raw_word: str, confidence: float) -> None:
         word = raw_word.strip(".,;:()[]{}'\"-—")
-        if len(word) < 3 or word.lower() not in OCR_ORG_BRANDS:
+        if len(word) < 2:
             return
+        w_lower = word.lower()
+        cat = None
+        if w_lower in OCR_ORG_BRANDS and "ORGANIZATION" in active_cats:
+            cat = "ORGANIZATION"
+        elif w_lower in OCR_LOCATIONS and "LOCATION" in active_cats:
+            cat = "LOCATION"
+
+        if not cat:
+            return
+
         start = global_start
         end = start + len(word)
-        key = (start, end, word.lower())
+        key = (start, end, w_lower)
         if key in seen:
             return
         seen.add(key)
         detections.append({
             "text": word,
-            "category": "ORGANIZATION",
+            "category": cat,
             "start": start,
             "end": end,
-            "detection_method": "ocr_brand_rule",
-            "confidence": round(max(0.86, min(0.95, confidence)), 4),
+            "detection_method": "ocr_rule",
+            "confidence": round(max(0.88, min(0.96, confidence)), 4),
         })
 
     for entry in structure_map:

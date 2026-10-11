@@ -119,6 +119,33 @@ ORG_SUFFIX_PATTERN = re.compile(
     r"Solutions|Systems|Technologies|Services|Group|Holdings|Inc\.?|Ltd\.?|Limited|Corp\.?|Corporation|Pvt\.?\s+Ltd\.?|LLC|PLC))\b"
 )
 
+# Prominent Countries, States, Union Territories, Regions, and Cities
+_KNOWN_LOCATIONS_LIST = [
+    # Countries & Nationalities
+    "India", "Indian", "United States", "USA", "United Kingdom", "UK", "Canada",
+    "Australia", "Germany", "France", "Japan", "China", "Singapore", "Brazil",
+    "Russia", "Spain", "Italy", "Switzerland", "Netherlands", "Sweden", "Norway",
+    "Denmark", "Ireland", "New Zealand", "South Africa", "UAE", "Dubai", "Saudi Arabia",
+    # Indian States & Union Territories
+    "Maharashtra", "Gujarat", "Karnataka", "Tamil Nadu", "Uttar Pradesh", "Rajasthan",
+    "Punjab", "Kerala", "West Bengal", "Bihar", "Madhya Pradesh", "Odisha", "Andhra Pradesh",
+    "Telangana", "Haryana", "Assam", "Jharkhand", "Chhattisgarh", "Uttarakhand",
+    "Himachal Pradesh", "Goa", "Jammu & Kashmir", "Ladakh", "Delhi", "New Delhi",
+    "Andaman & Nicobar", "Andaman and Nicobar", "Andaman", "Nicobar", "Lakshadweep",
+    "Puducherry", "Chandigarh",
+    # Prominent Geographic Regions & Features
+    "Himalayas", "Trans Himalayas", "Gangetic Plain", "Deccan Plateau", "Western Ghats", "Eastern Ghats",
+    # Major Cities
+    "Mumbai", "Bengaluru", "Bangalore", "Hyderabad", "Ahmedabad", "Chennai", "Kolkata",
+    "Surat", "Pune", "Jaipur", "Lucknow", "Nagpur", "Indore", "Thane", "Bhopal",
+    "Visakhapatnam", "Vadodara", "Noida", "Gurgaon", "Gurugram", "London", "New York", "Tokyo", "Paris"
+]
+_KNOWN_LOCATIONS_LIST.sort(key=len, reverse=True)
+KNOWN_LOCATION_PATTERN = re.compile(
+    r"\b(?:" + "|".join(re.escape(loc) for loc in _KNOWN_LOCATIONS_LIST) + r")\b",
+    re.IGNORECASE
+)
+
 
 def detect_context_pii(text: str) -> list[dict]:
     """
@@ -284,6 +311,18 @@ def detect_context_pii(text: str) -> list[dict]:
             "category": "ORGANIZATION",
             "start": m.start(1),
             "end": m.start(1) + len(raw_match),
+            "detection_method": "context_rule",
+            "confidence": 0.94,
+        })
+
+    # 6. Prominent Countries, States, Regions, and Cities
+    for m in KNOWN_LOCATION_PATTERN.finditer(text):
+        raw_match = m.group(0).strip()
+        add_detection({
+            "text": raw_match,
+            "category": "LOCATION",
+            "start": m.start(0),
+            "end": m.end(0),
             "detection_method": "context_rule",
             "confidence": 0.94,
         })
