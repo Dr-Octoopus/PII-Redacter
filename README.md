@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🔐 PII Redactor
+# PII Redactor
 
 **Detect and redact Personally Identifiable Information from documents — fully offline, no LLMs, no API calls.**
 
