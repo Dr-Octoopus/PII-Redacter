@@ -30,7 +30,7 @@
   * **Images & Scanned Documents:** Tesseract OCR with pixel-precise black box redaction over detected text bounding boxes.
 * **Modern Web Interface:** Built with React 18 and Vite featuring side-by-side original vs. redacted comparison, page navigation, interactive zoom & drag panning, category toggles with select/deselect all, dark/light theme toggle, and 3D interactive globe canvas.
 * **Dual Deliverables:** Generates both the sanitized document (`{filename}_masked.{ext}`) and an audit-ready structured report (`{filename}_report.json`).
-
+  
 ---
 
 ## 🛡️ Supported PII Categories
