@@ -175,11 +175,11 @@ from detectors.context_detector import detect_context_pii, REJECT_TITLE_WORDS, F
 
 
 _ORG_SUSPICION_TERMS = {
-    "api", "repository", "factory", "tool", "tools", "manual", "page",
+    "api", "apis", "repository", "factory", "tool", "tools", "manual", "page",
     "configuration", "config", "workflow", "module", "platform", "deployment",
-    "engineer", "intern", "internship", "messaging", "omnichannel", "computer",
-    "science", "enterprise", "business", "businesses", "gtm", "fde",
-    "college", "near"
+    "engineer", "engineers", "mcp", "intern", "internship", "messaging", "omnichannel",
+    "computer", "science", "enterprise", "business", "businesses", "gtm", "fde",
+    "college", "near", "developer", "developers", "architect", "architects"
 }
 
 # Specific known brand / company names that are NOT generic words.
@@ -254,7 +254,7 @@ def _should_skip_entity(text: str, category: str) -> bool:
         return True
 
     if category == "ORGANIZATION":
-        if lower in {"process systems", "process systems and solutions", "microsoft excel"}:
+        if lower in {"process systems", "process systems and solutions", "microsoft excel", "mcp", "engineers", "engineer"}:
             return True
         if lower in FALSE_ORG_TERMS or lower in GEOGRAPHIC_LOCATION_TERMS:
             return True

@@ -45,9 +45,10 @@ FALSE_ORG_TERMS = {
     "digital", "personal", "data", "protection", "act", "compliance", "summary",
     "scope", "overview", "vendor", "report", "chief", "information", "security",
     "officer", "division", "technology", "computer", "science", "engineering",
-    "engineer", "deployment", "platform", "core", "messaging", "omnichannel",
+    "engineer", "engineers", "mcp", "deployment", "platform", "core", "messaging", "omnichannel",
     "enterprise", "business", "businesses", "about", "middle", "east", "intern",
-    "internship", "gtm", "fde", "or", "near", "college"
+    "internship", "gtm", "fde", "or", "near", "college",
+    "developer", "developers", "architect", "architects"
 }
 
 NON_PERSON_WORDS = FALSE_ORG_TERMS | {
