@@ -93,6 +93,8 @@ LABEL_MAP: dict[str, str] = {
     "PERSON": "PERSON_NAME",
     "GPE":    "LOCATION",
     "LOC":    "LOCATION",
+    "FAC":    "LOCATION",
+    "NORP":   "LOCATION",
     "ORG":    "ORGANIZATION",
 }
 
@@ -102,12 +104,16 @@ _BASE_CONFIDENCE_TRF: dict[str, float] = {
     "PERSON": 0.85,
     "GPE":    0.88,
     "LOC":    0.88,
+    "FAC":    0.86,
+    "NORP":   0.88,
     "ORG":    0.86,
 }
 _BASE_CONFIDENCE_SM: dict[str, float] = {
     "PERSON": 0.75,
     "GPE":    0.80,
     "LOC":    0.80,
+    "FAC":    0.78,
+    "NORP":   0.80,
     "ORG":    0.78,
 }
 _BASE_CONFIDENCE = (
@@ -169,11 +175,11 @@ from detectors.context_detector import detect_context_pii, REJECT_TITLE_WORDS, F
 
 
 _ORG_SUSPICION_TERMS = {
-    "api", "repository", "factory", "tool", "tools", "manual", "page",
+    "api", "apis", "repository", "factory", "tool", "tools", "manual", "page",
     "configuration", "config", "workflow", "module", "platform", "deployment",
-    "engineer", "intern", "internship", "messaging", "omnichannel", "computer",
-    "science", "enterprise", "business", "businesses", "gtm", "fde",
-    "college", "near"
+    "engineer", "engineers", "mcp", "intern", "internship", "messaging", "omnichannel",
+    "computer", "science", "enterprise", "business", "businesses", "gtm", "fde",
+    "college", "near", "developer", "developers", "architect", "architects"
 }
 
 # Specific known brand / company names that are NOT generic words.
@@ -186,7 +192,7 @@ _ORG_LEGAL_OR_BRAND_TERMS = {
     "siemens", "honeywell", "intel", "samsung", "sony", "tata", "infosys", "wipro",
     "accenture", "cognizant", "dell", "nvidia", "amd", "tesla", "meta",
     "facebook", "adobe", "salesforce", "whatsapp", "instagram", "linkedin",
-    "youtube", "engati", "hp", "azure", "aws", "gcp",
+    "youtube", "engati", "hp", "azure", "aws", "gcp", "geeksforgeeks", "gfg",
     # Financial institutions
     "jpmorganchase", "jpmorgan", "goldman", "citibank", "citigroup", "barclays",
     "hsbc", "ubs", "deutsche", "wellsfargo", "bofa", "blackrock", "vanguard",
@@ -248,7 +254,7 @@ def _should_skip_entity(text: str, category: str) -> bool:
         return True
 
     if category == "ORGANIZATION":
-        if lower in {"process systems", "process systems and solutions", "microsoft excel"}:
+        if lower in {"process systems", "process systems and solutions", "microsoft excel", "mcp", "engineers", "engineer"}:
             return True
         if lower in FALSE_ORG_TERMS or lower in GEOGRAPHIC_LOCATION_TERMS:
             return True
